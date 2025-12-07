@@ -79,7 +79,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Fetch player stats from tarkov.dev API
 async function fetchPlayerStats() {
+    console.log('🔍 fetchPlayerStats called');
+    
     const playerId = document.getElementById('player-id').value.trim();
+    console.log('📝 Player ID:', playerId);
     
     if (!playerId || playerId.length < 4) {
         showMessage('❌ Please enter a valid Player ID (min 4 digits)', 'error');
@@ -89,6 +92,8 @@ async function fetchPlayerStats() {
     // Turnstile is optional - if not available, proceed anyway
     if (!turnstileToken) {
         console.warn('⚠️ Turnstile token not available, proceeding without verification');
+    } else {
+        console.log('✅ Turnstile token available');
     }
 
     const fetchButton = document.getElementById('fetch-button');
@@ -141,12 +146,23 @@ async function fetchPlayerStats() {
         }
 
     } catch (error) {
-        console.error('❌ Error:', error);
-        showMessage(`❌ Error: ${error.message}`, 'error');
+        console.error('❌ Error fetching stats:', error);
+        
+        // Show detailed error message
+        let errorMsg = error.message || 'Unknown error occurred';
+        if (error.message && error.message.includes('Failed to fetch')) {
+            errorMsg = 'Network error. Check your internet connection or try again.';
+        }
+        
+        showMessage(`❌ Error: ${errorMsg}`, 'error');
         
         // Reset Turnstile
-        if (typeof turnstile !== 'undefined') {
-            turnstile.reset();
+        if (typeof turnstile !== 'undefined' && turnstile.reset) {
+            try {
+                turnstile.reset();
+            } catch (e) {
+                console.warn('Could not reset Turnstile:', e);
+            }
         }
         turnstileToken = null;
         
