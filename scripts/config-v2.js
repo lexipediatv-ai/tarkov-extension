@@ -103,16 +103,42 @@ async function fetchPlayerStats() {
     showMessage('🔍 Fetching stats from tarkov.dev...', 'info');
 
     try {
-        const timestamp = new Date().getTime();
-        // Only include token if available
-        const tokenParam = turnstileToken ? `&token=${turnstileToken}` : '';
-        const apiUrl = `https://player.tarkov.dev/account/${playerId}?gameMode=regular${tokenParam}&_=${timestamp}`;
+        // Use GraphQL API instead of player.tarkov.dev (doesn't require Turnstile)
+        const graphqlUrl = 'https://api.tarkov.dev/graphql';
+        const query = `
+            query {
+                playerAccount(accountId: "${playerId}") {
+                    aid
+                    info {
+                        nickname
+                        side
+                        experience
+                        memberCategory
+                    }
+                    pmcStats {
+                        eft {
+                            totalInGameTime
+                            overAllCounters {
+                                items {
+                                    key
+                                    value
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        `;
         
-        console.log('🌐 Fetching stats:', apiUrl);
+        console.log('🌐 Fetching stats from GraphQL API...');
         
-        const response = await fetch(apiUrl, {
-            method: 'GET',
-            headers: { 'Accept': 'application/json' },
+        const response = await fetch(graphqlUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ query }),
             cache: 'no-store'
         });
 
@@ -122,21 +148,35 @@ async function fetchPlayerStats() {
             if (response.status === 429) {
                 throw new Error('Rate limit reached. Wait 1 minute and try again.');
             }
-            if (response.status === 401) {
-                throw new Error('Security verification failed. Reload the page.');
-            }
-            
             const errorText = await response.text();
             throw new Error(errorText || `HTTP Error ${response.status}`);
         }
 
-        const data = await response.json();
+        const result = await response.json();
+        console.log('✅ GraphQL response:', result);
+        
+        if (result.errors) {
+            throw new Error(result.errors[0].message || 'GraphQL query failed');
+        }
+        
+        const data = result.data.playerAccount;
+        if (!data) {
+            throw new Error('Player not found. Check the Player ID.');
+        }
+        
         console.log('✅ Stats received:', data);
 
-        if (data.aid && data.info) {
-            playerData = data;
+        // Transform GraphQL response to match expected format
+        const transformedData = {
+            aid: data.aid,
+            info: data.info,
+            pmcStats: data.pmcStats
+        };
+        
+        if (transformedData.aid && transformedData.info) {
+            playerData = transformedData;
             playerData.playerId = playerId;
-            displayStats(data);
+            displayStats(transformedData);
             showMessage('✅ Stats loaded successfully!', 'success');
             
             // Enable save button
