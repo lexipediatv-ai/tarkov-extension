@@ -48,7 +48,8 @@ window.onload = function() {
 function updateFetchButtonState() {
     const playerId = document.getElementById('player-id').value.trim();
     const fetchButton = document.getElementById('fetch-button');
-    const isValid = playerId.length >= 4 && turnstileToken !== null;
+    // Allow fetch even without Turnstile token (optional verification)
+    const isValid = playerId.length >= 4;
     fetchButton.disabled = !isValid;
 }
 
@@ -70,9 +71,9 @@ async function fetchPlayerStats() {
         return;
     }
 
+    // Turnstile is optional - if not available, proceed anyway
     if (!turnstileToken) {
-        showMessage('❌ Complete security verification first', 'error');
-        return;
+        console.warn('⚠️ Turnstile token not available, proceeding without verification');
     }
 
     const fetchButton = document.getElementById('fetch-button');
@@ -83,7 +84,9 @@ async function fetchPlayerStats() {
 
     try {
         const timestamp = new Date().getTime();
-        const apiUrl = `https://player.tarkov.dev/account/${playerId}?gameMode=regular&token=${turnstileToken}&_=${timestamp}`;
+        // Only include token if available
+        const tokenParam = turnstileToken ? `&token=${turnstileToken}` : '';
+        const apiUrl = `https://player.tarkov.dev/account/${playerId}?gameMode=regular${tokenParam}&_=${timestamp}`;
         
         console.log('🌐 Fetching stats:', apiUrl);
         
