@@ -53,14 +53,29 @@ function updateFetchButtonState() {
     fetchButton.disabled = !isValid;
 }
 
-// Listen to input changes
-document.getElementById('player-id').addEventListener('input', updateFetchButtonState);
-
-// Fetch button click handler
-document.getElementById('fetch-button').addEventListener('click', fetchPlayerStats);
-
-// Form submit handler
-document.getElementById('config-form').addEventListener('submit', saveConfiguration);
+// Wait for DOM to be ready before attaching event listeners
+document.addEventListener('DOMContentLoaded', function() {
+    // Listen to input changes
+    const playerIdInput = document.getElementById('player-id');
+    const fetchButton = document.getElementById('fetch-button');
+    const configForm = document.getElementById('config-form');
+    
+    if (playerIdInput) {
+        playerIdInput.addEventListener('input', updateFetchButtonState);
+        // Initial check
+        updateFetchButtonState();
+    }
+    
+    // Fetch button click handler
+    if (fetchButton) {
+        fetchButton.addEventListener('click', fetchPlayerStats);
+    }
+    
+    // Form submit handler
+    if (configForm) {
+        configForm.addEventListener('submit', saveConfiguration);
+    }
+});
 
 // Fetch player stats from tarkov.dev API
 async function fetchPlayerStats() {
