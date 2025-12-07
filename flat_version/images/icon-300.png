@@ -1,0 +1,5 @@
+<!-- Placeholder icon - Replace with your actual 300x200 icon -->
+<svg width="300" height="200" xmlns="http://www.w3.org/2000/svg">
+  <rect width="300" height="200" fill="#9146FF"/>
+  <text x="150" y="105" font-family="Arial" font-size="20" fill="white" text-anchor="middle">300x200</text>
+</svg>

@@ -1,0 +1,5 @@
+<!-- Placeholder icon - Replace with your actual 100x100 icon -->
+<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg">
+  <rect width="100" height="100" fill="#9146FF"/>
+  <text x="50" y="55" font-family="Arial" font-size="14" fill="white" text-anchor="middle">100x100</text>
+</svg>

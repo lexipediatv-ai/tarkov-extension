@@ -1,0 +1,33 @@
+{
+  "manifest_version": 1,
+  "id": "your-extension-id",
+  "version": "2.1.0",
+  "name": "Tarkov Stats",
+  "author": "Your Name",
+  "description": "Display your Escape From Tarkov PMC stats with auto-refresh from tarkov.dev API",
+  "panel_height": 535,
+  "support_email": "your-email@example.com",
+  "state": "Testing",
+  "views": {
+    "panel": {
+      "viewer_url": "panel.html",
+      "height": 500,
+      "can_link_external_content": true
+    },
+    "config": {
+      "viewer_url": "config.html",
+      "can_link_external_content": true
+    }
+  },
+  "icon_urls": {
+    "100x100": "images/icon-100.png",
+    "24x24": "images/icon-24.png",
+    "300x200": "images/icon-300.png"
+  },
+  "screenshot_urls": [],
+  "bits_enabled": false,
+  "subscription_support_level": "none",
+  "request_identity_link": false,
+  "allowlisted_config_urls": [],
+  "allowlisted_panel_urls": []
+}
