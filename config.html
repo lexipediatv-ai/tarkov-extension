@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Configuration - Tarkov Stats</title>
+    <link rel="stylesheet" href="styles/config.css">
+    <script src="https://extension-files.twitch.tv/helper/v1/twitch-ext.min.js"></script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+</head>
+<body>
+    <div class="config-container">
+        <header>
+            <h1>⚔️ Tarkov Stats Extension</h1>
+            <p class="subtitle">Automatic stats via official tarkov.dev API</p>
+        </header>
+
+        <main>
+            <form id="config-form">
+                <!-- Player ID -->
+                <div class="form-section">
+                    <div class="form-group highlight">
+                        <label for="player-id">
+                            <strong>� Player ID (Account ID):</strong>
+                        </label>
+                        <input 
+                            type="text" 
+                            id="player-id" 
+                            class="form-input"
+                            placeholder="e.g., 12220692"
+                            required
+                            autocomplete="off"
+                            minlength="4"
+                        >
+                        <small class="help-text">
+                            Find it at <a href="https://tarkov.dev/players" target="_blank">tarkov.dev/players</a> - Search your nickname, copy the number from URL
+                        </small>
+                    </div>
+
+                    <!-- Cloudflare Turnstile -->
+                    <div class="form-group">
+                        <label><strong>🔒 Security Verification:</strong></label>
+                        <div id="turnstile-widget" class="cf-turnstile"></div>
+                        <small class="help-text">
+                            Complete the verification to fetch your stats
+                        </small>
+                    </div>
+
+                    <!-- Auto-refresh Option -->
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="auto-refresh" checked>
+                            <strong>🔄 Auto-update stats every 5 minutes</strong>
+                        </label>
+                        <small class="help-text">
+                            Keep your panel stats fresh automatically
+                        </small>
+                    </div>
+
+                    <!-- Search Button -->
+                    <button type="button" class="fetch-button" id="fetch-button" disabled>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                            <path d="M21 21L15 15M17 10C17 13.866 13.866 17 10 17C6.13401 17 3 13.866 3 10C3 6.13401 6.13401 3 10 3C13.866 3 17 6.13401 17 10Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                        </svg>
+                        <span id="button-text">🚀 Fetch Stats</span>
+                    </button>
+                </div>
+
+                <!-- Status Messages -->
+                <div id="status-message" class="status-message" style="display: none;"></div>
+
+                <!-- Stats Display (shown after fetch) -->
+                <div class="stats-section" id="stats-section" style="display: none;">
+                    <h3>📊 Your Statistics</h3>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-label">Raids</div>
+                            <div class="stat-value" id="display-raids">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Kills</div>
+                            <div class="stat-value" id="display-kills">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Deaths</div>
+                            <div class="stat-value" id="display-deaths">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Survived</div>
+                            <div class="stat-value" id="display-survived">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">K/D Ratio</div>
+                            <div class="stat-value" id="display-kd">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">S/R Ratio</div>
+                            <div class="stat-value" id="display-sr">-%</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Level</div>
+                            <div class="stat-value" id="display-level">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Runthrough</div>
+                            <div class="stat-value" id="display-runthrough">-</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Hours</div>
+                            <div class="stat-value" id="display-hours">-</div>
+                        </div>
+                    </div>
+
+                    <!-- Achievements Section -->
+                    <div id="achievements-container" class="achievements-container"></div>
+                </div>
+
+                <!-- Hidden Fields -->
+                <input type="hidden" id="stats-raids">
+                <input type="hidden" id="stats-kills">
+                <input type="hidden" id="stats-deaths">
+                <input type="hidden" id="stats-survived">
+                <input type="hidden" id="stats-runthrough">
+                <input type="hidden" id="stats-hours">
+                <input type="hidden" id="stats-kd">
+                <input type="hidden" id="stats-sr">
+                <input type="hidden" id="stats-level">
+                <input type="hidden" id="player-id">
+
+                <!-- Save Button -->
+                    <div class="button-group">
+                    <button type="submit" class="save-button" id="save-button" disabled>
+                        💾 Save Configuration
+                    </button>
+                </div>
+            </form>
+
+            <!-- Extension Status -->
+            <div class="status-info">
+                <div class="status-item">
+                    <span class="status-label">Extension Status:</span>
+                    <span class="status-value" id="extension-status">Loading...</span>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>✨ Official tarkov.dev API - Auto-updated stats every 5 minutes</p>
+            <p>🔒 Powered by Cloudflare Turnstile security</p>
+        </footer>
+    </div>
+
+    <script src="scripts/config-v2.js"></script>
+</body>
+</html>

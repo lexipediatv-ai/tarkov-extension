@@ -1,0 +1,35 @@
+# Extensão para Twitch - .gitignore
+
+# Node modules (se usar npm no futuro)
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Ambiente
+.env
+.env.local
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Arquivos temporários
+*.tmp
+temp/
+
+# Build
+dist/
+build/
+
+# Twitch Developer Rig
+.rig/

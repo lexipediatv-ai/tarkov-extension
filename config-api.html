@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tarkov Stats - API Oficial</title>
+    <link rel="stylesheet" href="styles/config.css">
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+</head>
+<body>
+    <div class="config-container">
+        <h1>🎮 Tarkov Stats Extension</h1>
+        <p class="subtitle">Busca automática usando API oficial do tarkov.dev</p>
+
+        <!-- Player ID Input -->
+        <div class="form-group">
+            <label for="player-id">Player ID (Account ID)</label>
+            <input 
+                type="text" 
+                id="player-id" 
+                placeholder="Ex: 12220692" 
+                minlength="4"
+                maxlength="15">
+            <small>Digite apenas o número do seu Account ID</small>
+        </div>
+
+        <!-- Cloudflare Turnstile Widget -->
+        <div class="form-group">
+            <div id="turnstile-widget" class="cf-turnstile"></div>
+        </div>
+
+        <!-- Botão de Busca -->
+        <button id="search-btn" class="fetch-button" disabled>
+            <span id="btn-text">🔍 Buscar Perfil</span>
+        </button>
+
+        <!-- Status Messages -->
+        <div id="status" class="status-message" style="display: none;"></div>
+
+        <!-- Resultado: Stats -->
+        <div id="stats-result" style="display: none;">
+            <h2>📊 Stats Encontradas</h2>
+            
+            <div class="stat-card">
+                <div class="stat-label">Nickname:</div>
+                <div class="stat-value" id="stat-nickname">-</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Level:</div>
+                <div class="stat-value" id="stat-level">-</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Side:</div>
+                <div class="stat-value" id="stat-side">-</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Total Raids:</div>
+                <div class="stat-value" id="stat-raids">-</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Survived:</div>
+                <div class="stat-value" id="stat-survived">-</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Survival Rate:</div>
+                <div class="stat-value" id="stat-sr">-</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Total Kills:</div>
+                <div class="stat-value" id="stat-kills">-</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">K/D Ratio:</div>
+                <div class="stat-value" id="stat-kd">-</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Time in Game:</div>
+                <div class="stat-value" id="stat-time">-</div>
+            </div>
+
+            <div class="form-group">
+                <a id="profile-link" href="#" target="_blank" class="profile-link">
+                    🔗 Ver Perfil Completo no tarkov.dev
+                </a>
+            </div>
+
+            <button id="save-btn" class="save-button">
+                💾 Salvar Stats
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let turnstileToken = null;
+        let playerData = null;
+
+        // Initialize Turnstile when loaded
+        window.onload = function() {
+            turnstile.render('#turnstile-widget', {
+                sitekey: '0x4AAAAAAAVVIHGZCr2PPwrR',
+                theme: 'dark',
+                callback: function(token) {
+                    turnstileToken = token;
+                    console.log('✅ Turnstile verificado');
+                    updateButtonState();
+                },
+                'error-callback': function() {
+                    showMessage('❌ Erro na verificação de segurança. Recarregue a página.', 'error');
+                }
+            });
+        };
+
+        // Update button state based on inputs
+        function updateButtonState() {
+            const playerId = document.getElementById('player-id').value.trim();
+            const searchBtn = document.getElementById('search-btn');
+            
+            const isValid = playerId.length >= 4 && turnstileToken !== null;
+            searchBtn.disabled = !isValid;
+        }
+
+        // Listen to input changes
+        document.getElementById('player-id').addEventListener('input', updateButtonState);
+
+        // Search button click handler
+        document.getElementById('search-btn').addEventListener('click', searchPlayer);
+
+        // Save button click handler
+        document.getElementById('save-btn').addEventListener('click', saveStats);
+
+        async function searchPlayer() {
+            const playerId = document.getElementById('player-id').value.trim();
+            
+            if (!playerId || playerId.length < 4) {
+                showMessage('❌ Digite um Player ID válido (mínimo 4 dígitos)', 'error');
+                return;
+            }
+
+            if (!turnstileToken) {
+                showMessage('❌ Verificação de segurança pendente. Aguarde...', 'error');
+                return;
+            }
+
+            // Update UI
+            const searchBtn = document.getElementById('search-btn');
+            const btnText = document.getElementById('btn-text');
+            searchBtn.disabled = true;
+            btnText.textContent = '⏳ Buscando...';
+            showMessage('🔍 Consultando API do tarkov.dev...', 'info');
+
+            try {
+                // Call official tarkov.dev API
+                const apiUrl = `https://player.tarkov.dev/account/${playerId}?gameMode=regular&token=${turnstileToken}`;
+                
+                console.log('🌐 Chamando API:', apiUrl);
+                
+                const response = await fetch(apiUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+
+                console.log('📡 Status:', response.status);
+
+                if (!response.ok) {
+                    if (response.status === 429) {
+                        throw new Error('Rate limit atingido. Aguarde 1 minuto e tente novamente.');
+                    }
+                    if (response.status === 401) {
+                        throw new Error('Verificação de segurança falhou. Recarregue a página.');
+                    }
+                    if (response.status === 404) {
+                        throw new Error('Perfil não encontrado. Verifique o Player ID.');
+                    }
+                    
+                    const errorText = await response.text();
+                    throw new Error(errorText || `Erro HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log('✅ Dados recebidos:', data);
+
+                if (data.aid && data.info) {
+                    playerData = data;
+                    displayStats(data);
+                    showMessage('✅ Stats carregadas com sucesso!', 'success');
+                } else {
+                    throw new Error('Resposta da API sem dados válidos');
+                }
+
+            } catch (error) {
+                console.error('❌ Erro:', error);
+                showMessage(`❌ Erro: ${error.message}`, 'error');
+                
+                // Reset Turnstile
+                turnstile.reset();
+                turnstileToken = null;
+                
+            } finally {
+                // Restore button
+                searchBtn.disabled = false;
+                btnText.textContent = '🔍 Buscar Perfil';
+            }
+        }
+
+        function displayStats(data) {
+            // Extract stats from API response
+            const info = data.info || {};
+            const pmcStats = data.pmcStats?.eft?.overAllCounters?.Items || [];
+            const scavStats = data.scavStats?.eft?.overAllCounters?.Items || [];
+
+            // Helper function to find stat value
+            function findStat(stats, keyParts) {
+                const stat = stats.find(s => keyParts.every(part => s.Key.includes(part)));
+                return stat?.Value || 0;
+            }
+
+            // Calculate stats
+            const pmcRaids = findStat(pmcStats, ['Sessions']);
+            const scavRaids = findStat(scavStats, ['Sessions']);
+            const totalRaids = pmcRaids + scavRaids;
+
+            const pmcSurvived = findStat(pmcStats, ['ExitStatus', 'Survived']);
+            const scavSurvived = findStat(scavStats, ['ExitStatus', 'Survived']);
+            const totalSurvived = pmcSurvived + scavSurvived;
+
+            const pmcKills = findStat(pmcStats, ['Kills']);
+            const scavKills = findStat(scavStats, ['Kills']);
+            const totalKills = pmcKills + scavKills;
+
+            const pmcDeaths = findStat(pmcStats, ['ExitStatus', 'Killed']);
+            const scavDeaths = findStat(scavStats, ['ExitStatus', 'Killed']);
+            const totalDeaths = pmcDeaths + scavDeaths;
+
+            const kd = totalDeaths > 0 ? (totalKills / totalDeaths).toFixed(2) : totalKills.toFixed(2);
+            const sr = totalRaids > 0 ? ((totalSurvived / totalRaids) * 100).toFixed(1) : '0.0';
+
+            // Calculate level from experience
+            const exp = info.experience || 0;
+            const level = calculateLevel(exp);
+
+            // Format time in game
+            const totalSeconds = data.pmcStats?.eft?.totalInGameTime || 0;
+            const timeFormatted = formatTime(totalSeconds);
+
+            // Update UI
+            document.getElementById('stat-nickname').textContent = info.nickname || 'N/A';
+            document.getElementById('stat-level').textContent = level;
+            document.getElementById('stat-side').textContent = info.side || 'N/A';
+            document.getElementById('stat-raids').textContent = totalRaids.toLocaleString();
+            document.getElementById('stat-survived').textContent = totalSurvived.toLocaleString();
+            document.getElementById('stat-sr').textContent = sr + '%';
+            document.getElementById('stat-kills').textContent = totalKills.toLocaleString();
+            document.getElementById('stat-kd').textContent = kd;
+            document.getElementById('stat-time').textContent = timeFormatted;
+
+            // Profile link
+            const profileLink = document.getElementById('profile-link');
+            profileLink.href = `https://tarkov.dev/players/regular/${data.aid}`;
+
+            // Show stats section
+            document.getElementById('stats-result').style.display = 'block';
+        }
+
+        function calculateLevel(exp) {
+            // Simplified level calculation (tarkov.dev has full table)
+            // This is approximate - for exact level, would need full experience table
+            if (exp === 0) return 1;
+            if (exp < 1000) return 1;
+            if (exp < 4017) return 2;
+            
+            // Approximate formula for higher levels
+            let level = 1;
+            let expRequired = 0;
+            const baseExp = 1000;
+            
+            while (expRequired < exp && level < 79) {
+                level++;
+                expRequired += baseExp + (level * 100);
+            }
+            
+            return Math.min(level, 79);
+        }
+
+        function formatTime(seconds) {
+            if (seconds === 0) return '0h 0m';
+            
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            
+            return `${hours}h ${minutes}m`;
+        }
+
+        function saveStats() {
+            if (!playerData) {
+                showMessage('❌ Nenhum dado para salvar', 'error');
+                return;
+            }
+
+            // Here you would save to Twitch Configuration Service
+            // For now, just show success
+            showMessage('💾 Stats salvas! (Funcionalidade de salvar será implementada na versão Twitch)', 'success');
+            
+            console.log('Dados a salvar:', {
+                nickname: playerData.info.nickname,
+                playerId: playerData.aid,
+                level: calculateLevel(playerData.info.experience),
+                // ... other stats
+            });
+        }
+
+        function showMessage(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status-message ${type}`;
+            statusDiv.style.display = 'block';
+
+            // Auto-hide success messages
+            if (type === 'success') {
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 5000);
+            }
+        }
+    </script>
+
+    <style>
+        .stat-card {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px;
+            margin: 8px 0;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--accent, #d4af37);
+            border-radius: 4px;
+        }
+
+        .stat-label {
+            font-weight: bold;
+            color: var(--accent, #d4af37);
+        }
+
+        .stat-value {
+            color: var(--text-primary, #c7c5b3);
+            font-family: 'Courier New', monospace;
+        }
+
+        .profile-link {
+            display: inline-block;
+            margin: 15px 0;
+            padding: 10px 15px;
+            background: var(--accent, #d4af37);
+            color: var(--bg-primary, #0f0f0f);
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+            transition: opacity 0.2s;
+        }
+
+        .profile-link:hover {
+            opacity: 0.8;
+        }
+
+        .save-button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 15px;
+            background: var(--success, #6a9a66);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .save-button:hover {
+            opacity: 0.9;
+        }
+
+        .cf-turnstile {
+            margin: 15px 0;
+        }
+
+        #stats-result {
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 2px solid var(--accent, #d4af37);
+            border-radius: 8px;
+        }
+
+        #stats-result h2 {
+            margin-top: 0;
+            color: var(--accent, #d4af37);
+        }
+    </style>
+</body>
+</html>

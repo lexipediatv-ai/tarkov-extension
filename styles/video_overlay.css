@@ -1,0 +1,90 @@
+/* Video Overlay Styles */
+:root {
+    --primary-color: #9146FF;
+    --secondary-color: #772CE8;
+    --overlay-bg: rgba(0, 0, 0, 0.7);
+    --text-color: #FFFFFF;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: transparent;
+    color: var(--text-color);
+    overflow: hidden;
+}
+
+.overlay-container {
+    width: 100%;
+    height: 100vh;
+    position: relative;
+    pointer-events: none;
+}
+
+.overlay-box {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background-color: var(--overlay-bg);
+    backdrop-filter: blur(10px);
+    padding: 20px;
+    border-radius: 8px;
+    border: 2px solid var(--primary-color);
+    max-width: 300px;
+    pointer-events: auto;
+    animation: slideIn 0.5s ease-out;
+    box-shadow: 0 4px 15px rgba(145, 70, 255, 0.3);
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.overlay-box.hidden {
+    display: none;
+}
+
+#overlay-title {
+    font-size: 1.2em;
+    font-weight: 700;
+    margin-bottom: 10px;
+    color: var(--primary-color);
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+#overlay-message {
+    font-size: 0.95em;
+    line-height: 1.5;
+    color: var(--text-color);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .overlay-box {
+        top: 10px;
+        right: 10px;
+        max-width: 250px;
+        padding: 15px;
+    }
+    
+    #overlay-title {
+        font-size: 1em;
+    }
+    
+    #overlay-message {
+        font-size: 0.85em;
+    }
+}

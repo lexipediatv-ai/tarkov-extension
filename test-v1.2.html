@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🧪 Teste v1.2 - Tarkov Stats</title>
+    <link rel="stylesheet" href="styles/config.css">
+    <style>
+        body {
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .test-section {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 2px solid #3a3a3a;
+        }
+        .test-section h2 {
+            color: #d4af37;
+            margin-top: 0;
+        }
+        .test-case {
+            background: #0f0f0f;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #6a9a66;
+        }
+        .test-case.fail {
+            border-left-color: #d63031;
+        }
+        .test-result {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 5px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .test-result.pass {
+            background: #6a9a66;
+            color: white;
+        }
+        .test-result.fail {
+            background: #d63031;
+            color: white;
+        }
+        .test-result.pending {
+            background: #f39c12;
+            color: white;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        button {
+            padding: 12px 24px;
+            margin: 5px;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #d4af37 0%, #9a8866 100%);
+            color: #0f0f0f;
+        }
+        .btn-secondary {
+            background: #3a3a3a;
+            color: #c7c5b3;
+        }
+        .console-output {
+            background: #000;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        .console-line {
+            margin: 5px 0;
+        }
+        .console-line.error {
+            color: #ff6b6b;
+        }
+        .console-line.success {
+            color: #51cf66;
+        }
+        .console-line.info {
+            color: #74c0fc;
+        }
+    </style>
+</head>
+<body>
+    <h1 style="color: #d4af37; text-align: center;">🧪 Teste Automatizado v1.2</h1>
+    
+    <div class="test-section">
+        <h2>📋 Checklist de Validação</h2>
+        
+        <div class="test-case" id="test-fields">
+            <strong>✓ Campos presentes:</strong>
+            <span class="test-result pending">Testando...</span>
+            <div class="console-output" id="output-fields"></div>
+        </div>
+        
+        <div class="test-case" id="test-validation">
+            <strong>✓ Validação funcionando:</strong>
+            <span class="test-result pending">Testando...</span>
+            <div class="console-output" id="output-validation"></div>
+        </div>
+        
+        <div class="test-case" id="test-functions">
+            <strong>✓ Funções definidas:</strong>
+            <span class="test-result pending">Testando...</span>
+            <div class="console-output" id="output-functions"></div>
+        </div>
+        
+        <div class="test-case" id="test-events">
+            <strong>✓ Event listeners:</strong>
+            <span class="test-result pending">Testando...</span>
+            <div class="console-output" id="output-events"></div>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h2>🎮 Teste Manual</h2>
+        <p style="color: #9a8866;">Use os controles abaixo para testar o comportamento da interface:</p>
+        
+        <div class="controls">
+            <button class="btn-primary" onclick="testValidInput()">
+                ✅ Preencher Dados Válidos
+            </button>
+            <button class="btn-secondary" onclick="testInvalidNickname()">
+                ❌ Nickname Inválido
+            </button>
+            <button class="btn-secondary" onclick="testInvalidId()">
+                ❌ ID Inválido
+            </button>
+            <button class="btn-primary" onclick="clearInputs()">
+                🔄 Limpar Campos
+            </button>
+        </div>
+        
+        <iframe 
+            src="config.html" 
+            style="width: 100%; height: 600px; border: 2px solid #3a3a3a; border-radius: 10px; background: white;"
+            id="config-iframe">
+        </iframe>
+    </div>
+    
+    <div class="test-section">
+        <h2>📊 Console de Teste</h2>
+        <div class="console-output" id="main-console">
+            <div class="console-line info">[INFO] Sistema de teste carregado</div>
+            <div class="console-line info">[INFO] Aguardando execução dos testes...</div>
+        </div>
+        <div class="controls">
+            <button class="btn-primary" onclick="runAllTests()">▶️ Executar Todos os Testes</button>
+            <button class="btn-secondary" onclick="clearConsole()">🗑️ Limpar Console</button>
+        </div>
+    </div>
+
+    <script>
+        let testsPassed = 0;
+        let testsFailed = 0;
+
+        function log(message, type = 'info') {
+            const console = document.getElementById('main-console');
+            const line = document.createElement('div');
+            line.className = `console-line ${type}`;
+            const timestamp = new Date().toLocaleTimeString();
+            line.textContent = `[${timestamp}] ${message}`;
+            console.appendChild(line);
+            console.scrollTop = console.scrollHeight;
+        }
+
+        function updateTestResult(testId, passed, details) {
+            const testCase = document.getElementById(testId);
+            const resultSpan = testCase.querySelector('.test-result');
+            const output = document.getElementById(`output-${testId.replace('test-', '')}`);
+            
+            resultSpan.textContent = passed ? '✅ PASS' : '❌ FAIL';
+            resultSpan.className = `test-result ${passed ? 'pass' : 'fail'}`;
+            testCase.className = `test-case ${passed ? '' : 'fail'}`;
+            
+            output.innerHTML = details.map(d => 
+                `<div class="console-line ${d.type || 'info'}">${d.message}</div>`
+            ).join('');
+
+            if (passed) {
+                testsPassed++;
+                log(`✅ ${testId} passou`, 'success');
+            } else {
+                testsFailed++;
+                log(`❌ ${testId} falhou`, 'error');
+            }
+        }
+
+        function testFields() {
+            log('Testando campos da interface...', 'info');
+            const iframe = document.getElementById('config-iframe');
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+            
+            const details = [];
+            let allPresent = true;
+
+            const fields = [
+                { id: 'player-nickname', name: 'Nickname' },
+                { id: 'player-id-input', name: 'Player ID' },
+                { id: 'fetch-button', name: 'Botão Buscar' }
+            ];
+
+            fields.forEach(field => {
+                const element = iframeDoc.getElementById(field.id);
+                if (element) {
+                    details.push({ 
+                        message: `✓ ${field.name} encontrado (id: ${field.id})`,
+                        type: 'success'
+                    });
+                } else {
+                    details.push({ 
+                        message: `✗ ${field.name} NÃO encontrado (id: ${field.id})`,
+                        type: 'error'
+                    });
+                    allPresent = false;
+                }
+            });
+
+            updateTestResult('test-fields', allPresent, details);
+        }
+
+        function testValidation() {
+            log('Testando validação de campos...', 'info');
+            const iframe = document.getElementById('config-iframe');
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+            const iframeWindow = iframe.contentWindow;
+            
+            const details = [];
+            let validationWorks = true;
+
+            try {
+                // Verificar se função existe
+                if (typeof iframeWindow.checkFormInputs === 'function') {
+                    details.push({ 
+                        message: '✓ Função checkFormInputs() existe',
+                        type: 'success'
+                    });
+                } else {
+                    details.push({ 
+                        message: '✗ Função checkFormInputs() NÃO encontrada',
+                        type: 'error'
+                    });
+                    validationWorks = false;
+                }
+
+                // Testar botão desabilitado inicialmente
+                const button = iframeDoc.getElementById('fetch-button');
+                if (button && button.disabled) {
+                    details.push({ 
+                        message: '✓ Botão começa desabilitado',
+                        type: 'success'
+                    });
+                } else {
+                    details.push({ 
+                        message: '✗ Botão deveria começar desabilitado',
+                        type: 'error'
+                    });
+                    validationWorks = false;
+                }
+            } catch (error) {
+                details.push({ 
+                    message: `✗ Erro ao testar: ${error.message}`,
+                    type: 'error'
+                });
+                validationWorks = false;
+            }
+
+            updateTestResult('test-validation', validationWorks, details);
+        }
+
+        function testFunctions() {
+            log('Verificando funções JavaScript...', 'info');
+            const iframe = document.getElementById('config-iframe');
+            const iframeWindow = iframe.contentWindow;
+            
+            const details = [];
+            let allFunctionsPresent = true;
+
+            const functions = [
+                'checkFormInputs',
+                'fetchStats',
+                'displayStats',
+                'showManualStatsForm'
+            ];
+
+            functions.forEach(func => {
+                if (typeof iframeWindow[func] === 'function') {
+                    details.push({ 
+                        message: `✓ ${func}() definida`,
+                        type: 'success'
+                    });
+                } else {
+                    details.push({ 
+                        message: `✗ ${func}() NÃO definida`,
+                        type: 'error'
+                    });
+                    allFunctionsPresent = false;
+                }
+            });
+
+            updateTestResult('test-functions', allFunctionsPresent, details);
+        }
+
+        function testEvents() {
+            log('Testando event listeners...', 'info');
+            const details = [];
+            
+            // Este teste é mais complexo e requer acesso aos listeners
+            // Por ora, verificamos se os campos têm o atributo necessário
+            const iframe = document.getElementById('config-iframe');
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+            
+            const nickname = iframeDoc.getElementById('player-nickname');
+            const playerId = iframeDoc.getElementById('player-id-input');
+            
+            let eventsOk = true;
+            
+            if (nickname && playerId) {
+                details.push({ 
+                    message: '✓ Campos de input presentes',
+                    type: 'success'
+                });
+                details.push({ 
+                    message: 'ℹ Event listeners devem ser testados manualmente',
+                    type: 'info'
+                });
+            } else {
+                details.push({ 
+                    message: '✗ Campos de input não encontrados',
+                    type: 'error'
+                });
+                eventsOk = false;
+            }
+
+            updateTestResult('test-events', eventsOk, details);
+        }
+
+        function runAllTests() {
+            log('═══════════════════════════════════', 'info');
+            log('Iniciando bateria de testes v1.2...', 'info');
+            log('═══════════════════════════════════', 'info');
+            
+            testsPassed = 0;
+            testsFailed = 0;
+
+            setTimeout(() => {
+                testFields();
+                setTimeout(() => {
+                    testValidation();
+                    setTimeout(() => {
+                        testFunctions();
+                        setTimeout(() => {
+                            testEvents();
+                            setTimeout(() => {
+                                log('═══════════════════════════════════', 'info');
+                                log(`Testes concluídos: ${testsPassed} passou, ${testsFailed} falhou`, 
+                                    testsFailed > 0 ? 'error' : 'success');
+                                log('═══════════════════════════════════', 'info');
+                            }, 500);
+                        }, 500);
+                    }, 500);
+                }, 500);
+            }, 1000);
+        }
+
+        function testValidInput() {
+            log('Preenchendo com dados válidos...', 'info');
+            const iframe = document.getElementById('config-iframe');
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+            
+            const nickname = iframeDoc.getElementById('player-nickname');
+            const playerId = iframeDoc.getElementById('player-id-input');
+            
+            if (nickname && playerId) {
+                nickname.value = 'regular';
+                playerId.value = '10590762';
+                
+                // Trigger input events
+                nickname.dispatchEvent(new Event('input', { bubbles: true }));
+                playerId.dispatchEvent(new Event('input', { bubbles: true }));
+                
+                log('✅ Campos preenchidos: nickname=regular, id=10590762', 'success');
+            }
+        }
+
+        function testInvalidNickname() {
+            log('Testando nickname inválido...', 'info');
+            const iframe = document.getElementById('config-iframe');
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+            
+            const nickname = iframeDoc.getElementById('player-nickname');
+            const playerId = iframeDoc.getElementById('player-id-input');
+            
+            if (nickname && playerId) {
+                nickname.value = 'a'; // Menos de 2 caracteres
+                playerId.value = '10590762';
+                
+                nickname.dispatchEvent(new Event('input', { bubbles: true }));
+                playerId.dispatchEvent(new Event('input', { bubbles: true }));
+                
+                log('⚠️ Nickname inválido (1 char) - Botão deve estar desabilitado', 'info');
+            }
+        }
+
+        function testInvalidId() {
+            log('Testando ID inválido...', 'info');
+            const iframe = document.getElementById('config-iframe');
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+            
+            const nickname = iframeDoc.getElementById('player-nickname');
+            const playerId = iframeDoc.getElementById('player-id-input');
+            
+            if (nickname && playerId) {
+                nickname.value = 'regular';
+                playerId.value = '123'; // Menos de 4 caracteres
+                
+                nickname.dispatchEvent(new Event('input', { bubbles: true }));
+                playerId.dispatchEvent(new Event('input', { bubbles: true }));
+                
+                log('⚠️ ID inválido (3 chars) - Botão deve estar desabilitado', 'info');
+            }
+        }
+
+        function clearInputs() {
+            log('Limpando campos...', 'info');
+            const iframe = document.getElementById('config-iframe');
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+            
+            const nickname = iframeDoc.getElementById('player-nickname');
+            const playerId = iframeDoc.getElementById('player-id-input');
+            
+            if (nickname && playerId) {
+                nickname.value = '';
+                playerId.value = '';
+                
+                nickname.dispatchEvent(new Event('input', { bubbles: true }));
+                playerId.dispatchEvent(new Event('input', { bubbles: true }));
+                
+                log('🔄 Campos limpos', 'info');
+            }
+        }
+
+        function clearConsole() {
+            const console = document.getElementById('main-console');
+            console.innerHTML = '<div class="console-line info">[INFO] Console limpo</div>';
+        }
+
+        // Auto-executar testes após carregar iframe
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                log('Página de teste carregada', 'success');
+                log('Clique em "Executar Todos os Testes" para começar', 'info');
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
