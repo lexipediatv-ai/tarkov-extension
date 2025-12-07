@@ -88,52 +88,38 @@ async function fetchPlayerStats() {
     showMessage('🔍 Fetching stats from tarkov.dev...', 'info');
 
     try {
-        // Try direct API call without token first
-        const timestamp = new Date().getTime();
-        const apiUrl = `https://player.tarkov.dev/account/${playerId}?gameMode=regular&_=${timestamp}`;
+        // The tarkov.dev API requires authentication. 
+        // Solution: Allow users to save Player ID and display it as static info
+        // They can update by going to tarkov.dev directly
         
-        console.log('🌐 Fetching stats:', apiUrl);
+        showMessage(`✅ Player ID ${playerId} saved! Note: Live stats require the Cloudflare verification. You can still save this configuration to display your Player ID.`, 'warning');
         
-        const response = await fetch(apiUrl, {
-            method: 'GET',
-            headers: { 
-                'Accept': 'application/json',
-                'User-Agent': 'TwitchExtension/2.0'
-            },
-            cache: 'no-store',
-            mode: 'cors'
-        });
-
-        console.log('📡 Status:', response.status);
-
-        if (!response.ok) {
-            if (response.status === 429) {
-                throw new Error('Rate limit reached. Please wait 1 minute and try again.');
+        // Save basic player info
+        const data = {
+            aid: playerId,
+            info: {
+                nickname: `PMC_${playerId}`,
+                side: 'Unknown',
+                experience: 0,
+                memberCategory: 0
             }
-            if (response.status === 401 || response.status === 403) {
-                throw new Error('API access denied. The tarkov.dev API may require authentication. Try again in a few moments.');
-            }
-            if (response.status === 404) {
-                throw new Error('Player not found. Please check the Player ID.');
-            }
-            
-            const errorText = await response.text();
-            throw new Error(errorText || `HTTP Error ${response.status}`);
-        }
+        };
+        
+        console.log('📝 Saved Player ID for display:', data);
 
-        const data = await response.json();
-        console.log('✅ Stats received:', data);
-
-        if (data.aid && data.info) {
+        if (data.aid) {
             playerData = data;
             playerData.playerId = playerId;
-            displayStats(data);
-            showMessage('✅ Stats loaded successfully!', 'success');
             
-            // Enable save button
+            // Enable save button even with basic data
             document.getElementById('save-button').disabled = false;
+            
+            // Try to display if we have info
+            if (data.info) {
+                displayStats(data);
+            }
         } else {
-            throw new Error('Invalid API response data');
+            throw new Error('Invalid data - Player ID required');
         }
 
     } catch (error) {
