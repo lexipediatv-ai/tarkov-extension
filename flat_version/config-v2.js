@@ -26,22 +26,11 @@ if (twitch) {
     });
 }
 
-// Initialize Cloudflare Turnstile
+// No Turnstile initialization - direct API access
 window.onload = function() {
-    if (typeof turnstile !== 'undefined') {
-        turnstile.render('#turnstile-widget', {
-            sitekey: '0x4AAAAAAAVVIHGZCr2PPwrR',
-            theme: 'dark',
-            callback: function(token) {
-                turnstileToken = token;
-                console.log('✅ Turnstile verified');
-                updateFetchButtonState();
-            },
-            'error-callback': function() {
-                showMessage('❌ Erro na verificação de segurança. Recarregue a página.', 'error');
-            }
-        });
-    }
+    console.log('✅ Config page loaded - ready to fetch stats');
+    // Enable button immediately
+    updateFetchButtonState();
 };
 
 // Update fetch button state
@@ -89,16 +78,8 @@ async function fetchPlayerStats() {
         return;
     }
 
-    // Check Turnstile status
-    if (!turnstileToken) {
-        console.warn('⚠️ Turnstile token not available');
-        showMessage('⚠️ Security verification pending. Please wait for the Cloudflare check to complete (red box above).', 'warning');
-        fetchButton.disabled = false;
-        buttonText.textContent = '🚀 Fetch Stats';
-        return;
-    } else {
-        console.log('✅ Turnstile token available');
-    }
+    // No Turnstile check - proceed directly
+    console.log('🚀 Proceeding without Turnstile verification');
 
     const fetchButton = document.getElementById('fetch-button');
     const buttonText = document.getElementById('button-text');
@@ -107,27 +88,33 @@ async function fetchPlayerStats() {
     showMessage('🔍 Fetching stats from tarkov.dev...', 'info');
 
     try {
-        // Use player.tarkov.dev API with optional token
+        // Try direct API call without token first
         const timestamp = new Date().getTime();
-        const tokenParam = turnstileToken ? `&token=${turnstileToken}` : '';
-        const apiUrl = `https://player.tarkov.dev/account/${playerId}?gameMode=regular${tokenParam}&_=${timestamp}`;
+        const apiUrl = `https://player.tarkov.dev/account/${playerId}?gameMode=regular&_=${timestamp}`;
         
         console.log('🌐 Fetching stats:', apiUrl);
         
         const response = await fetch(apiUrl, {
             method: 'GET',
-            headers: { 'Accept': 'application/json' },
-            cache: 'no-store'
+            headers: { 
+                'Accept': 'application/json',
+                'User-Agent': 'TwitchExtension/2.0'
+            },
+            cache: 'no-store',
+            mode: 'cors'
         });
 
         console.log('📡 Status:', response.status);
 
         if (!response.ok) {
             if (response.status === 429) {
-                throw new Error('Rate limit reached. Wait 1 minute and try again.');
+                throw new Error('Rate limit reached. Please wait 1 minute and try again.');
             }
-            if (response.status === 401) {
-                throw new Error('The tarkov.dev API requires security verification. Please reload the page and try again after the Cloudflare check completes.');
+            if (response.status === 401 || response.status === 403) {
+                throw new Error('API access denied. The tarkov.dev API may require authentication. Try again in a few moments.');
+            }
+            if (response.status === 404) {
+                throw new Error('Player not found. Please check the Player ID.');
             }
             
             const errorText = await response.text();
