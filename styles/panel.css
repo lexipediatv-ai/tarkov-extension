@@ -232,10 +232,16 @@ main {
     padding: 10px;
     background-color: var(--tarkov-darker);
     border-radius: 4px;
-    margin-bottom: 12px;
+    margin: 10px;
     border: 1px solid var(--border-color);
     text-align: center;
     font-size: 12px;
+}
+
+#message-box.error {
+    background-color: rgba(139, 0, 0, 0.2);
+    border-color: var(--tarkov-red);
+    color: #ff6b6b;
 }
 
 .tarkov-footer {

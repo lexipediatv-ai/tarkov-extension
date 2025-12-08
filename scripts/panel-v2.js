@@ -169,9 +169,12 @@ function hideError() {
 // Initialize extension
 function init() {
     console.log('🚀 Panel initializing...');
+    console.log('📍 window.Twitch available:', !!window.Twitch);
+    console.log('📍 window.Twitch.ext available:', !!(window.Twitch && window.Twitch.ext));
     
     if (window.Twitch && window.Twitch.ext) {
         twitch = window.Twitch.ext;
+        console.log('✅ Using Twitch Extension API');
         
         twitch.onAuthorized((auth) => {
             console.log('✅ Extension authorized');
@@ -255,12 +258,19 @@ async function loadConfiguration() {
         return;
     }
     
+    console.log('📡 Reading broadcaster config...');
+    console.log('📦 Raw config:', twitch.configuration.broadcaster);
+    
     const config = twitch.configuration.broadcaster?.content;
+    
+    console.log('📝 Config content:', config);
     
     if (config) {
         try {
             const data = JSON.parse(config);
             console.log('📥 Twitch configuration loaded:', data);
+            console.log('📍 Has playerId:', !!data.playerId);
+            console.log('📍 Has nickname:', !!data.nickname);
             
             // Check if we have a playerId - if yes, fetch stats automatically
             if (data.playerId) {
@@ -281,10 +291,12 @@ async function loadConfiguration() {
             }
         } catch (e) {
             console.error('❌ Error parsing config:', e);
+            console.error('❌ Config string was:', config);
             showError('Erro ao carregar configuração');
         }
     } else {
         console.log('⚠️ No Twitch configuration found');
+        console.log('📍 Broadcaster object:', twitch.configuration.broadcaster);
         showError('Configure a extensão primeiro!');
     }
 }
