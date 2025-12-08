@@ -8,6 +8,7 @@
   "panel_height": 535,
   "support_email": "your-email@example.com",
   "state": "Testing",
+  "config_url": "config.html",
   "views": {
     "panel": {
       "viewer_url": "panel.html",
@@ -28,6 +29,7 @@
   "bits_enabled": false,
   "subscription_support_level": "none",
   "request_identity_link": false,
+  "required_broadcaster_abilities": [],
   "allowlisted_config_urls": [
     "https://tarkov-stats-bdojw4788-marcelos-projects-fb95b857.vercel.app",
     "https://players.tarkov.dev",
