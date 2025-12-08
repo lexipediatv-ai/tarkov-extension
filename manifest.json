@@ -3,8 +3,8 @@
   "id": "your-extension-id",
   "version": "2.1.0",
   "name": "Tarkov Stats",
-  "author": "Your Name",
-  "description": "Display your Escape From Tarkov PMC stats with auto-refresh from tarkov.dev API",
+  "author": "PokaronaTTV",
+  "description": "Display your Escape From Tarkov PMC stats with auto-refresh. Shows level, K/D, survival rate, raids, and more from tarkov.dev API!",
   "panel_height": 535,
   "support_email": "your-email@example.com",
   "state": "Testing",
@@ -28,6 +28,16 @@
   "bits_enabled": false,
   "subscription_support_level": "none",
   "request_identity_link": false,
-  "allowlisted_config_urls": [],
-  "allowlisted_panel_urls": []
+  "allowlisted_config_urls": [
+    "https://tarkov-stats-bdojw4788-marcelos-projects-fb95b857.vercel.app",
+    "https://players.tarkov.dev",
+    "https://api.tarkov.dev",
+    "https://assets.tarkov.dev"
+  ],
+  "allowlisted_panel_urls": [
+    "https://tarkov-stats-bdojw4788-marcelos-projects-fb95b857.vercel.app",
+    "https://players.tarkov.dev",
+    "https://api.tarkov.dev",
+    "https://assets.tarkov.dev"
+  ]
 }

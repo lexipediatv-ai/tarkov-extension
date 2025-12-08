@@ -47,82 +47,24 @@
                         </small>
                     </div>
 
-                    <!-- Search Button -->
-                    <button type="button" class="fetch-button" id="fetch-button" disabled>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                            <path d="M21 21L15 15M17 10C17 13.866 13.866 17 10 17C6.13401 17 3 13.866 3 10C3 6.13401 6.13401 3 10 3C13.866 3 17 6.13401 17 10Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-                        </svg>
-                        <span id="button-text">🚀 Fetch Stats</span>
+                    <!-- Save Button -->
+                    <button type="submit" class="save-button" id="save-button">
+                        💾 Save Player ID
                     </button>
                 </div>
 
                 <!-- Status Messages -->
                 <div id="status-message" class="status-message" style="display: none;"></div>
 
-                <!-- Stats Display (shown after fetch) -->
-                <div class="stats-section" id="stats-section" style="display: none;">
-                    <h3>📊 Your Statistics</h3>
-                    
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="stat-label">Raids</div>
-                            <div class="stat-value" id="display-raids">-</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Kills</div>
-                            <div class="stat-value" id="display-kills">-</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Deaths</div>
-                            <div class="stat-value" id="display-deaths">-</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Survived</div>
-                            <div class="stat-value" id="display-survived">-</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">K/D Ratio</div>
-                            <div class="stat-value" id="display-kd">-</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">S/R Ratio</div>
-                            <div class="stat-value" id="display-sr">-%</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Level</div>
-                            <div class="stat-value" id="display-level">-</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Runthrough</div>
-                            <div class="stat-value" id="display-runthrough">-</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Hours</div>
-                            <div class="stat-value" id="display-hours">-</div>
-                        </div>
-                    </div>
-
-                    <!-- Achievements Section -->
-                    <div id="achievements-container" class="achievements-container"></div>
-                </div>
-
-                <!-- Hidden Fields -->
-                <input type="hidden" id="stats-raids">
-                <input type="hidden" id="stats-kills">
-                <input type="hidden" id="stats-deaths">
-                <input type="hidden" id="stats-survived">
-                <input type="hidden" id="stats-runthrough">
-                <input type="hidden" id="stats-hours">
-                <input type="hidden" id="stats-kd">
-                <input type="hidden" id="stats-sr">
-                <input type="hidden" id="stats-level">
-                <input type="hidden" id="player-id">
-
-                <!-- Save Button -->
-                    <div class="button-group">
-                    <button type="submit" class="save-button" id="save-button" disabled>
-                        💾 Save Configuration
-                    </button>
+                <!-- Info Box -->
+                <div class="info-box" style="margin-top: 20px; padding: 20px; background: rgba(255,255,255,0.05); border-radius: 8px; border-left: 4px solid #9147ff;">
+                    <h3 style="margin-top: 0;">ℹ️ How it works:</h3>
+                    <ol style="margin: 10px 0; padding-left: 20px;">
+                        <li>Enter your Player ID above</li>
+                        <li>Click "Save Player ID"</li>
+                        <li>Open your panel - stats will load automatically!</li>
+                    </ol>
+                    <p style="margin-bottom: 0;"><strong>Note:</strong> Stats are fetched directly in the panel view for better performance.</p>
                 </div>
             </form>
 

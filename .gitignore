@@ -33,3 +33,4 @@ build/
 
 # Twitch Developer Rig
 .rig/
+.vercel

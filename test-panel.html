@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Panel Test</title>
+</head>
+<body>
+    <h1>Panel Debug Test</h1>
+    <div id="output" style="font-family: monospace; white-space: pre;"></div>
+    
+    <script>
+        const output = document.getElementById('output');
+        
+        function log(msg) {
+            output.textContent += msg + '\n';
+            console.log(msg);
+        }
+        
+        log('🚀 Starting panel test...\n');
+        
+        // Check localStorage
+        try {
+            const raw = localStorage.getItem('tarkov_ext_config');
+            log('📦 localStorage raw: ' + (raw ? 'EXISTS' : 'EMPTY'));
+            
+            if (raw) {
+                log('📄 Content: ' + raw);
+                
+                const parsed = JSON.parse(raw);
+                log('✅ Parsed successfully');
+                log('📊 Config: ' + JSON.stringify(parsed.config, null, 2));
+                
+                if (parsed.config && parsed.config.playerId) {
+                    log('\n🎯 Found Player ID: ' + parsed.config.playerId);
+                    log('⏳ Fetching stats...\n');
+                    
+                    // Test fetch
+                    fetch('http://localhost:8080/api/player/id/' + parsed.config.playerId)
+                        .then(r => r.json())
+                        .then(data => {
+                            log('✅ Stats fetched successfully!');
+                            log('👤 Nickname: ' + data.nickname);
+                            log('⭐ Level: ' + data.stats.level);
+                            log('🏆 Prestige: ' + data.stats.prestige);
+                            log('🐻 Faction: ' + data.stats.faction);
+                            log('🎯 Raids: ' + data.stats.raids);
+                            log('💀 K/D: ' + data.stats.kd);
+                        })
+                        .catch(err => {
+                            log('❌ Fetch error: ' + err.message);
+                        });
+                } else {
+                    log('❌ No playerId in config');
+                }
+            } else {
+                log('❌ localStorage is empty!');
+                log('\n💡 Steps:');
+                log('1. Go to http://localhost:8081/config.html');
+                log('2. Enter Player ID: 10590762');
+                log('3. Click "Save Player ID"');
+                log('4. Come back here and refresh');
+            }
+        } catch (e) {
+            log('❌ Error: ' + e.message);
+        }
+    </script>
+</body>
+</html>

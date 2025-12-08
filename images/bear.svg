@@ -1,5 +1,24 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-	<!-- BEAR emblem embedded from provided PNG source -->
-	<image href="https://static.wikia.nocookie.net/escapefromtarkov_gamepedia/images/a/a1/BEAR_Icon.png/revision/latest?cb=20231024012423" width="64" height="64" preserveAspectRatio="xMidYMid meet" />
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Original stylized BEAR icon (vector) - created for the extension. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" role="img" aria-label="Bear icon">
+	<defs>
+		<linearGradient id="g" x1="0" x2="1">
+			<stop offset="0" stop-color="#2b2b2b"/>
+			<stop offset="1" stop-color="#15311f"/>
+		</linearGradient>
+	</defs>
+	<rect width="100" height="100" rx="12" fill="#0d170f" />
+	<!-- Bear head base -->
+	<ellipse cx="50" cy="50" rx="28" ry="26" fill="url(#g)"/>
+	<!-- Ears -->
+	<ellipse cx="34" cy="32" rx="8" ry="7" fill="#0f0f0f" />
+	<ellipse cx="66" cy="32" rx="8" ry="7" fill="#0f0f0f" />
+	<!-- Muzzle -->
+	<ellipse cx="50" cy="60" rx="12" ry="8" fill="#c9bfb3" />
+	<circle cx="50" cy="60" r="2.2" fill="#211f1f" />
+	<!-- Eyes -->
+	<rect x="42" y="48" width="4" height="6" rx="2" fill="#060606" />
+	<rect x="54" y="48" width="4" height="6" rx="2" fill="#060606" />
+	<!-- Accent stroke -->
+	<path d="M22 68 C32 62, 68 62, 78 68" stroke="#000" stroke-width="2" fill="none" opacity="0.12" />
 </svg>

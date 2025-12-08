@@ -1,39 +1,75 @@
-# 🎮 Tarkov Stats - Extensão para Twitch
+# Tarkov Stats Twitch Extension# 🎮 Tarkov Stats - Extensão para Twitch
 
-Extensão para exibir suas estatísticas de Escape From Tarkov no painel da Twitch, com visual estilo militar e **busca automática de stats**.
 
-![Version](https://img.shields.io/badge/version-1.2.0-blue)
+
+Extensão para Twitch que exibe estatísticas do Escape from Tarkov.Extensão para exibir suas estatísticas de Escape From Tarkov no painel da Twitch, com visual estilo militar e **busca automática de stats**.
+
+
+
+## Estrutura![Version](https://img.shields.io/badge/version-1.2.0-blue)
+
 ![Status](https://img.shields.io/badge/status-production-green)
-![Twitch](https://img.shields.io/badge/platform-Twitch-purple)
 
-## 🆕 Novidades v1.2
-
-✨ **Auto-fetch de Stats** - Sistema inteligente que tenta buscar suas stats automaticamente
-📝 **Player ID Integration** - Use nickname + Player ID para acesso direto ao perfil
-🔄 **Fallback Manual** - Se auto-fetch falhar, sistema permite entrada manual
-🎯 **URL Direta** - Abre `tarkov.dev/players/{nickname}/{id}` diretamente
-
-## 📋 Estrutura do Projeto```
+```![Twitch](https://img.shields.io/badge/platform-Twitch-purple)
 
 twitch-extension/
 
-## ✅ O Que Está Pronto├── manifest.json           # Configuração principal da extensão
+├── backend/              # Backend scraper## 🆕 Novidades v1.2
 
-├── panel.html             # Painel para visualizadores
+│   ├── server.js        # API server (porta 3000)
 
-### Funcional e Testado├── config.html            # Página de configuração para streamers
+│   └── scraper-manual-captcha.js✨ **Auto-fetch de Stats** - Sistema inteligente que tenta buscar suas stats automaticamente
 
-- ✅ Painel de visualização para espectadores├── video_overlay.html     # Overlay exibido no vídeo
+├── config.html          # Página de configuração📝 **Player ID Integration** - Use nickname + Player ID para acesso direto ao perfil
 
-- ✅ Interface de configuração para streamer├── styles/                # Arquivos CSS
+├── panel.html           # Painel principal🔄 **Fallback Manual** - Se auto-fetch falhar, sistema permite entrada manual
 
-- ✅ Sistema de stats manuais (8 campos)│   ├── panel.css
+├── scripts/🎯 **URL Direta** - Abre `tarkov.dev/players/{nickname}/{id}` diretamente
 
-- ✅ Design tema Tarkov (tan/dourado/militar)│   ├── config.css
+│   ├── config-v2.js     # Lógica da config
 
-- ✅ Salvamento automático no Twitch│   └── video_overlay.css
+│   └── panel-v2.js      # Lógica do painel## 📋 Estrutura do Projeto```
 
-- ✅ Link para perfil tarkov.dev├── scripts/               # Arquivos JavaScript
+└── styles/              # CSS files
+
+```twitch-extension/
+
+
+
+## Como usar## ✅ O Que Está Pronto├── manifest.json           # Configuração principal da extensão
+
+
+
+1. **Iniciar Backend:**├── panel.html             # Painel para visualizadores
+
+```powershell
+
+cd backend### Funcional e Testado├── config.html            # Página de configuração para streamers
+
+npm start
+
+```- ✅ Painel de visualização para espectadores├── video_overlay.html     # Overlay exibido no vídeo
+
+
+
+2. **Configurar Player ID:**- ✅ Interface de configuração para streamer├── styles/                # Arquivos CSS
+
+   - Abrir `config.html`
+
+   - Inserir Player ID do tarkov.dev- ✅ Sistema de stats manuais (8 campos)│   ├── panel.css
+
+   - Resolver CAPTCHA quando aparecer
+
+   - Salvar configuração- ✅ Design tema Tarkov (tan/dourado/militar)│   ├── config.css
+
+
+
+3. **Ver Painel:**- ✅ Salvamento automático no Twitch│   └── video_overlay.css
+
+   - Abrir `panel.html`
+
+   - Stats aparecem automaticamente- ✅ Link para perfil tarkov.dev├── scripts/               # Arquivos JavaScript
+
 
 - ✅ Layout responsivo│   ├── panel.js
 

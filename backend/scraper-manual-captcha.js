@@ -8,36 +8,63 @@ class TarkovScraperWithManualCaptcha {
 
     async init() {
         if (!this.browser) {
-            console.log('🚀 Iniciando navegador (VISÍVEL para resolver CAPTCHA)...');
+            console.log('🚀 Iniciando navegador stealth (evitando detecção de bot)...');
             this.browser = await puppeteer.launch({
-                headless: false, // Visível
+                headless: false,
                 defaultViewport: null,
                 args: [
                     '--start-maximized',
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
-                    '--disable-blink-features=AutomationControlled'
+                    '--disable-blink-features=AutomationControlled',
+                    '--disable-web-security',
+                    '--disable-features=IsolateOrigins,site-per-process',
+                    '--disable-dev-shm-usage',
+                    '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36'
                 ],
-                ignoreDefaultArgs: ['--enable-automation']
+                ignoreDefaultArgs: ['--enable-automation'],
+                ignoreHTTPSErrors: true
             });
         }
     }
 
     async waitForCaptchaResolution(page) {
-        console.log('⚠️ CAPTCHA detectado! Por favor, resolva manualmente no navegador...');
-        console.log('👉 Clique na caixa do CAPTCHA para resolver');
-        console.log('⏳ Aguardando você resolver o CAPTCHA...');
+        console.log('\n' + '='.repeat(60));
+        console.log('⚠️  CAPTCHA DETECTADO! AÇÃO NECESSÁRIA');
+        console.log('='.repeat(60));
+        console.log('👉 Por favor, resolva o CAPTCHA no navegador que acabou de abrir');
+        console.log('👉 Clique na caixa "Verify you are human"');
+        console.log('⏳ Aguardando resolução (timeout: 2 minutos)...');
+        console.log('='.repeat(60) + '\n');
         
-        // Aguardar até o h1 não ser mais "Loading"
-        await page.waitForFunction(
-            () => {
-                const h1 = document.querySelector('h1');
-                return h1 && h1.textContent?.trim() !== 'Loading';
-            },
-            { timeout: 120000 } // 2 minutos para resolver
-        );
+        const startTime = Date.now();
         
-        console.log('✅ CAPTCHA resolvido! Continuando...');
+        // Aguardar até o conteúdo carregar OU stats aparecerem
+        try {
+            await page.waitForFunction(
+                () => {
+                    const bodyText = document.body.innerText;
+                    const h1 = document.querySelector('h1');
+                    
+                    // Verificar se não está mais no loading/captcha
+                    const hasStats = bodyText.includes('Raids') || 
+                                    bodyText.includes('Kills') || 
+                                    bodyText.includes('Deaths');
+                    const notLoading = h1 && h1.textContent?.trim() !== 'Loading';
+                    const notJustAMoment = !bodyText.includes('Just a moment');
+                    
+                    return hasStats && notLoading && notJustAMoment;
+                },
+                { timeout: 120000 } // 2 minutos
+            );
+            
+            const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+            console.log(`✅ CAPTCHA resolvido em ${elapsed}s! Continuando...`);
+            
+        } catch (error) {
+            console.error('❌ Timeout aguardando resolução do CAPTCHA');
+            throw new Error('CAPTCHA não foi resolvido no tempo limite');
+        }
     }
 
     async getPlayerStats(nickname, id) {
@@ -274,6 +301,227 @@ class TarkovScraperWithManualCaptcha {
                 error: error.message,
                 nickname: nickname,
                 id: id
+            };
+        }
+    }
+
+    async getPlayerStatsByUrl(url) {
+        let page;
+        try {
+            console.log('\n' + '='.repeat(80));
+            console.log('🔥🔥🔥 MÉTODO getPlayerStatsByUrl CHAMADO 🔥🔥🔥');
+            console.log(`📥 URL RECEBIDA: ${url}`);
+            console.log('='.repeat(80) + '\n');
+            
+            await this.init();
+            
+            if (!this.browser) {
+                throw new Error('Falha ao inicializar browser');
+            }
+
+            console.log(`✅ Browser inicializado, abrindo página...`);
+            page = await this.browser.newPage();
+            
+            // Configurar user agent e outros headers
+            await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
+            
+            // Esconder que é Puppeteer/automação
+            await page.evaluateOnNewDocument(() => {
+                // Remover navigator.webdriver
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => false,
+                });
+                
+                // Fingir que tem plugins
+                Object.defineProperty(navigator, 'plugins', {
+                    get: () => [1, 2, 3, 4, 5],
+                });
+                
+                // Fingir que tem languages
+                Object.defineProperty(navigator, 'languages', {
+                    get: () => ['en-US', 'en'],
+                });
+                
+                // Remover indicadores de headless Chrome
+                window.chrome = {
+                    runtime: {},
+                };
+            });
+            
+            console.log(`🌐 Navegando para: ${url}`);
+            
+            // Primeira navegação
+            await page.goto(url, { 
+                waitUntil: 'domcontentloaded',
+                timeout: 60000 
+            });
+
+            console.log(`✅ Página HTML carregada`);
+            
+            // Aguardar React/JavaScript renderizar
+            console.log(`⏳ Aguardando JavaScript renderizar (10s)...`);
+            await page.waitForTimeout(10000);
+
+            // Verificar se Cloudflare bloqueou
+            const pageText = await page.evaluate(() => document.body.innerText);
+            if (pageText.includes('Verify you are human') || pageText.includes('Just a moment')) {
+                console.log(`❌ Cloudflare/CAPTCHA detectado!`);
+                console.log(`⏳ Aguardando 15s para ver se passa automaticamente...`);
+                await page.waitForTimeout(15000);
+            }
+
+            // Aguardar stats carregarem
+            console.log(`⏳ Aguardando stats aparecerem na página...`);
+            
+            await page.waitForFunction(
+                () => {
+                    const h1 = document.querySelector('h1');
+                    const bodyText = document.body.innerText;
+                    
+                    return h1 && 
+                           h1.innerText.trim() !== 'Loading' && 
+                           (bodyText.includes('Raids') || bodyText.includes('Kills'));
+                },
+                { timeout: 30000 } // 30 segundos para stats carregarem
+            );
+            
+            console.log(`✅ Stats carregadas!`);
+            
+            // Aguardar mais 2 segundos para garantir que tudo renderizou
+            await page.waitForTimeout(2000);
+
+            // Salvar screenshot e HTML para debug
+            await page.screenshot({ path: 'debug-page.png', fullPage: true });
+            const html = await page.content();
+            require('fs').writeFileSync('debug-page.html', html);
+            console.log(`📸 Screenshot e HTML salvos`);
+
+            // Extrair stats da mesma forma
+            const stats = await page.evaluate(() => {
+                const stats = {
+                    level: 0,
+                    raids: 0,
+                    kd: 0,
+                    sr: 0,
+                    kills: 0,
+                    deaths: 0,
+                    survived: 0,
+                    runthrough: 0,
+                    traumatic: 0,
+                    hours: 0
+                };
+
+                // DEBUG: Salvar todo o texto da página
+                const allText = document.body.innerText;
+                console.log('📝 Primeiros 500 caracteres da página:', allText.substring(0, 500));
+                
+                // Raids
+                const raidsMatch = allText.match(/Raids[:\s]+([0-9,]+)/i);
+                if (raidsMatch) {
+                    stats.raids = parseInt(raidsMatch[1].replace(/,/g, '')) || 0;
+                }
+
+                // Kills
+                const killsMatch = allText.match(/Kills[:\s]+([0-9,]+)/i);
+                if (killsMatch) {
+                    stats.kills = parseInt(killsMatch[1].replace(/,/g, '')) || 0;
+                }
+
+                // Deaths
+                const deathsMatch = allText.match(/Deaths[:\s]+([0-9,]+)/i);
+                if (deathsMatch) {
+                    stats.deaths = parseInt(deathsMatch[1].replace(/,/g, '')) || 0;
+                }
+
+                // K/D
+                const kdMatch = allText.match(/K\/D Ratio[:\s]+([0-9.]+)/i);
+                if (kdMatch) {
+                    stats.kd = parseFloat(kdMatch[1]) || 0;
+                }
+
+                // S/R
+                const srMatch = allText.match(/S\/R Ratio[:\s]+([0-9.]+)%?/i);
+                if (srMatch) {
+                    stats.sr = parseFloat(srMatch[1]) || 0;
+                }
+
+                // Survived
+                const survivedMatch = allText.match(/Survived[:\s]+([0-9,]+)/i);
+                if (survivedMatch) {
+                    stats.survived = parseInt(survivedMatch[1].replace(/,/g, '')) || 0;
+                }
+
+                // Runthrough
+                const runthroughMatch = allText.match(/(?:Run-?through|Runthrough)[:\s]+([0-9,]+)/i);
+                if (runthroughMatch) {
+                    stats.runthrough = parseInt(runthroughMatch[1].replace(/,/g, '')) || 0;
+                }
+
+                // Hours
+                const hoursMatch = allText.match(/(?:Hours|Time)[:\s]+([0-9,]+)/i);
+                if (hoursMatch) {
+                    stats.hours = parseInt(hoursMatch[1].replace(/,/g, '')) || 0;
+                }
+
+                // Level
+                const levelMatch = allText.match(/Level[:\s]+(\d+)/i);
+                if (levelMatch) {
+                    stats.level = parseInt(levelMatch[1]) || 0;
+                }
+
+                return stats;
+            });
+
+            console.log('📊 Stats extraídas:', stats);
+
+            // Extrair nickname da página antes de fechar
+            const nickname = await page.evaluate(() => {
+                // Tentar encontrar o nickname no H1 ou título
+                const h1 = document.querySelector('h1');
+                if (h1) {
+                    return h1.innerText.trim();
+                }
+                return 'Unknown';
+            });
+
+            await page.close();
+
+            // Extrair ID da URL
+            const urlParts = url.split('/');
+            const id = urlParts[urlParts.length - 1];
+
+            if (stats.raids === 0 && stats.kills === 0) {
+                return {
+                    success: false,
+                    error: 'NO_STATS_FOUND',
+                    message: 'Não foi possível extrair stats da página',
+                    stats: stats
+                };
+            }
+
+            return {
+                success: true,
+                nickname: nickname,
+                id: id,
+                profileUrl: url,
+                stats: stats,
+                timestamp: new Date().toISOString()
+            };
+
+        } catch (error) {
+            console.error('❌ Erro:', error.message);
+            
+            if (page) {
+                try {
+                    await page.screenshot({ path: 'error-screenshot.png', fullPage: true });
+                    console.log('📸 Screenshot de erro salvo: error-screenshot.png');
+                } catch (e) {}
+                await page.close();
+            }
+
+            return {
+                success: false,
+                error: error.message
             };
         }
     }

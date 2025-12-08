@@ -26,47 +26,121 @@ if (twitch) {
     });
 }
 
-// No Turnstile initialization - direct API access
+// Config page initialization
 window.onload = function() {
-    console.log('✅ Config page loaded - ready to fetch stats');
-    // Enable button immediately
-    updateFetchButtonState();
+    console.log('✅ Config page loaded - ready to save Player ID');
+    updateSaveButtonState();
 };
 
-// Update fetch button state
-function updateFetchButtonState() {
+// Update save button state
+function updateSaveButtonState() {
     const playerId = document.getElementById('player-id').value.trim();
-    const fetchButton = document.getElementById('fetch-button');
-    // Allow fetch even without Turnstile token (optional verification)
+    const saveButton = document.getElementById('save-button');
     const isValid = playerId.length >= 4;
-    fetchButton.disabled = !isValid;
+    saveButton.disabled = !isValid;
 }
 
+// Wait for DOM to be ready before attaching event listeners
 // Wait for DOM to be ready before attaching event listeners
 document.addEventListener('DOMContentLoaded', function() {
     // Listen to input changes
     const playerIdInput = document.getElementById('player-id');
-    const fetchButton = document.getElementById('fetch-button');
     const configForm = document.getElementById('config-form');
     
     if (playerIdInput) {
-        playerIdInput.addEventListener('input', updateFetchButtonState);
+        playerIdInput.addEventListener('input', updateSaveButtonState);
         // Initial check
-        updateFetchButtonState();
+        updateSaveButtonState();
     }
     
-    // Fetch button click handler
-    if (fetchButton) {
-        fetchButton.addEventListener('click', fetchPlayerStats);
-    }
-    
-    // Form submit handler
+    // Form submit handler - save directly without fetching
     if (configForm) {
-        configForm.addEventListener('submit', saveConfiguration);
+        configForm.addEventListener('submit', saveConfigurationDirect);
     }
 });
+// Helper: Calculate level from experience points
+function calculateLevel(exp) {
+    if (!exp || exp <= 0) return 1;
+    
+    // Tarkov XP table (CUMULATIVE totals - official from Wiki)
+    // Source: https://escapefromtarkov.fandom.com/wiki/Experience
+    const xpTable = [
+        0, 1000, 4017, 8432, 14256, 21477, 30023, 39936, 51204, 63723,           // 1-10
+        77563, 93279, 115302, 143253, 177337, 217885, 264432, 316851, 374400, 437465,  // 11-20
+        505161, 577978, 656347, 741150, 836066, 944133, 1066259, 1199423, 1343743, 1499338, // 21-30
+        1666320, 1846664, 2043449, 2258436, 2492126, 2750217, 3032022, 3337766, 3663831, 4010481, // 31-40
+        4377862, 4785793, 5182399, 5627732, 6102063, 6690287, 7189442, 7779792, 8401607, 9455144, // 41-50
+        9740666, 10458431, 11219666, 12024744, 12874041, 13767918, 14706741, 15690872, 16720667, 17816442, // 51-60
+        19041492, 20360945, 21792266, 23350443, 25098462, 27100775, 29581231, 33028574, 37953544, 44260543, // 61-70
+        51901513, 60887711, 71228846, 82933459, 96009180, 110462910, 126300949, 144924572, 172016256 // 71-79
+    ];
+    
+    let level = 1;
+    for (let i = xpTable.length - 1; i >= 0; i--) {
+        if (exp >= xpTable[i]) {
+            level = i + 1;
+            break;
+        }
+    }
+    
+    return level;
+}
 
-// Fetch player stats from tarkov.dev API
+// Helper: Extract stat from overAllCounters array
+function findStat(items, key) {
+    const item = items.find(i => 
+        Array.isArray(i.Key) && i.Key.length === 1 && i.Key[0] === key
+    );
+    return item?.Value || 0;
+}
+
+// Helper: Extract nested stat from overAllCounters array
+function findNestedStat(items, key1, key2, key3) {
+    const item = items.find(i => 
+        Array.isArray(i.Key) && 
+        i.Key[0] === key1 && 
+        i.Key[1] === key2 &&
+        (!key3 || i.Key[2] === key3)
+    );
+    return item?.Value || 0;
+}
+
+// Helper: Process raw JSON data from tarkov.dev
+function processRawData(rawData, playerId) {
+    const items = rawData.pmcStats?.eft?.overAllCounters?.Items || [];
+    
+    const raids = findNestedStat(items, 'Sessions', 'Pmc');
+    const kills = findStat(items, 'Kills');
+    const deaths = findStat(items, 'Deaths');
+    const survived = findNestedStat(items, 'ExitStatus', 'Survived', 'Pmc');
+    const runthrough = findNestedStat(items, 'ExitStatus', 'Runner', 'Pmc');
+    
+    const kd = deaths > 0 ? (kills / deaths).toFixed(2) : kills.toFixed(2);
+    const sr = raids > 0 ? ((survived / raids) * 100).toFixed(2) : '0.00';
+    
+    return {
+        success: true,
+        nickname: rawData.info?.nickname || 'Unknown',
+        id: playerId,
+        profileUrl: `https://tarkov.dev/players/regular/${playerId}`,
+        stats: {
+            level: calculateLevel(rawData.info?.experience || 0),
+            faction: rawData.info?.side || 'Unknown',
+            prestige: rawData.info?.prestigeLevel || 0,
+            raids: raids,
+            kills: kills,
+            deaths: deaths,
+            kd: parseFloat(kd),
+            sr: parseFloat(sr),
+            survived: survived,
+            runthrough: runthrough,
+            hours: Math.floor((rawData.pmcStats?.eft?.totalInGameTime || 0) / 3600)
+        },
+        timestamp: new Date().toISOString()
+    };
+}
+
+// Fetch player stats - HYBRID approach (Backend with JSON fallback)
 async function fetchPlayerStats() {
     console.log('🔍 fetchPlayerStats called');
     
@@ -78,60 +152,142 @@ async function fetchPlayerStats() {
         return;
     }
 
-    // No Turnstile check - proceed directly
-    console.log('🚀 Proceeding without Turnstile verification');
-
     const fetchButton = document.getElementById('fetch-button');
     const buttonText = document.getElementById('button-text');
     fetchButton.disabled = true;
     buttonText.textContent = '⏳ Fetching...';
-    showMessage('🔍 Fetching stats from tarkov.dev...', 'info');
+    showMessage('🔍 Fetching stats...', 'info');
+
+    let result = null;
+    let source = 'unknown';
 
     try {
-        // The tarkov.dev API requires authentication. 
-        // Solution: Allow users to save Player ID and display it as static info
-        // They can update by going to tarkov.dev directly
-        
-        showMessage(`✅ Player ID ${playerId} saved! Note: Live stats require the Cloudflare verification. You can still save this configuration to display your Player ID.`, 'warning');
-        
-        // Save basic player info
-        const data = {
-            aid: playerId,
-            info: {
-                nickname: `PMC_${playerId}`,
-                side: 'Unknown',
-                experience: 0,
-                memberCategory: 0
-            }
-        };
-        
-        console.log('📝 Saved Player ID for display:', data);
-
-        if (data.aid) {
-            playerData = data;
-            playerData.playerId = playerId;
+        // STEP 1: Try backend first (fast with cache)
+        try {
+            console.log('🚀 [1/2] Trying backend API...');
+            const backendUrl = `https://tarkov-stats-bdojw4788-marcelos-projects-fb95b857.vercel.app/api/player/id/${playerId}`;
             
-            // Enable save button even with basic data
+            const backendResponse = await fetch(backendUrl, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' },
+                cache: 'no-store',
+                signal: AbortSignal.timeout(5000) // 5s timeout
+            });
+
+            if (backendResponse.ok) {
+                result = await backendResponse.json();
+                source = 'backend';
+                console.log('✅ Backend success:', result);
+            } else {
+                throw new Error(`Backend returned ${backendResponse.status}`);
+            }
+            
+        } catch (backendError) {
+            console.warn('⚠️ Backend failed:', backendError.message);
+            console.log('Stack:', backendError.stack);
+            
+            // STEP 2: Fallback to direct JSON (no backend needed)
+            console.log('🔄 [2/2] Falling back to direct JSON API...');
+            const jsonUrl = `https://players.tarkov.dev/profile/${playerId}.json`;
+            console.log('JSON URL:', jsonUrl);
+            
+            try {
+                const jsonResponse = await fetch(jsonUrl, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' },
+                    cache: 'no-store'
+                });
+
+                console.log('JSON Response status:', jsonResponse.status);
+
+                if (!jsonResponse.ok) {
+                    throw new Error(`Player not found (${jsonResponse.status})`);
+                }
+
+                const rawData = await jsonResponse.json();
+                console.log('Raw data received:', rawData);
+                
+                result = processRawData(rawData, playerId);
+                source = 'json-direct';
+                console.log('✅ JSON direct success:', result);
+                
+            } catch (jsonError) {
+                console.error('❌ JSON fallback also failed:', jsonError);
+                throw new Error(`Both backend and direct JSON failed: ${jsonError.message}`);
+            }
+        }
+
+        // Validate result
+        if (!result || !result.success) {
+            throw new Error('Failed to fetch player stats from any source');
+        }
+        
+        const data = result;
+        console.log(`✅ Stats received from ${source}:`, data);
+
+        // Adaptar nova estrutura do backend para formato esperado
+        if (data.id && data.nickname && data.stats) {
+            playerData = {
+                aid: data.id,
+                playerId: playerId,
+                info: {
+                    nickname: data.nickname,
+                    side: data.stats.faction,
+                    level: data.stats.level,
+                    prestigeLevel: data.stats.prestige || 0
+                },
+                pmcStats: {
+                    eft: {
+                        overAllCounters: {
+                            Items: [
+                                { Key: ['Sessions', 'Pmc'], Value: data.stats.raids },
+                                { Key: ['Kills'], Value: data.stats.kills },
+                                { Key: ['Deaths'], Value: data.stats.deaths },
+                                { Key: ['ExitStatus', 'Survived', 'Pmc'], Value: data.stats.survived },
+                                { Key: ['ExitStatus', 'Runner', 'Pmc'], Value: data.stats.runthrough }
+                            ]
+                        },
+                        totalInGameTime: data.stats.hours * 3600
+                    }
+                },
+                achievements: data.achievements || {}
+            };
+            
+            // Enable save button
             document.getElementById('save-button').disabled = false;
             
-            // Try to display if we have info
-            if (data.info) {
-                displayStats(data);
-            }
+            // Show success message with source info
+            const sourceIcon = source === 'backend' ? '⚡' : '🌐';
+            const sourceText = source === 'backend' ? 'Backend (Cached)' : 'Direct JSON';
+            showMessage(`${sourceIcon} Stats loaded from ${sourceText}`, 'success');
+            
+            // Display stats
+            displayStats(playerData);
         } else {
-            throw new Error('Invalid data - Player ID required');
+            throw new Error('Invalid data format');
         }
 
     } catch (error) {
-        console.error('❌ Error fetching stats:', error);
+        console.error('❌ FINAL Error fetching stats:', error);
+        console.error('Error details:', {
+            message: error.message,
+            stack: error.stack,
+            name: error.name
+        });
         
         // Show detailed error message
         let errorMsg = error.message || 'Unknown error occurred';
-        if (error.message && error.message.includes('Failed to fetch')) {
-            errorMsg = 'Network error. Check your internet connection or try again.';
+        
+        // Don't mask the real error - show it
+        if (errorMsg.includes('Failed to fetch')) {
+            errorMsg = 'Network error: Could not connect to tarkov.dev API';
+        } else if (errorMsg.includes('timeout')) {
+            errorMsg = 'Request timeout - tarkov.dev is slow or unreachable';
+        } else if (errorMsg.includes('404') || errorMsg.includes('not found')) {
+            errorMsg = 'Player not found. Check the Player ID.';
         }
         
-        showMessage(`❌ Error: ${errorMsg}`, 'error');
+        showMessage(`❌ ${errorMsg}`, 'error');
         
         // Reset Turnstile
         if (typeof turnstile !== 'undefined' && turnstile.reset) {
@@ -164,7 +320,7 @@ function displayStats(data) {
     const pmcRaids = findStat(pmcStats, ['Sessions']);
     const pmcSurvived = findStat(pmcStats, ['ExitStatus', 'Survived']);
     const pmcKills = findStat(pmcStats, ['Kills']);
-    const pmcDeaths = findStat(pmcStats, ['ExitStatus', 'Killed']);
+    const pmcDeaths = findStat(pmcStats, ['Deaths']); // Deaths tem chave simples, não nested
     const pmcRunthrough = findStat(pmcStats, ['Runner']);
     
     // Extract hours from totalInGameTime (in seconds)
@@ -181,10 +337,15 @@ function displayStats(data) {
 
     // Get level and prestige from API
     const prestige = typeof info.prestigeLevel === 'number' ? info.prestigeLevel : 0;
-    const exp = info.experience || 0;
     
-    // Calculate level from experience using official Tarkov table
-    const level = calculateLevel(exp);
+    // Use level directly from info if available (already calculated by backend),
+    // otherwise calculate from experience
+    const level = info.level || calculateLevel(info.experience || 0);
+
+    // Get faction info for icon display
+    const side = (info.side || info.faction || '').toString().toLowerCase();
+    const factionIcon = side.includes('bear') ? '🐻' : side.includes('usec') ? '🦅' : '';
+    const factionName = side.includes('bear') ? 'BEAR' : side.includes('usec') ? 'USEC' : side;
 
     // Update display (PMC-only)
     document.getElementById('display-raids').textContent = pmcRaids.toLocaleString();
@@ -193,8 +354,9 @@ function displayStats(data) {
     document.getElementById('display-survived').textContent = pmcSurvived.toLocaleString();
     document.getElementById('display-kd').textContent = kd;
     document.getElementById('display-sr').textContent = sr + '%';
-    // Show level with prestige marker when present
-    document.getElementById('display-level').textContent = prestige > 0 ? `${level} (Prestígio ${prestige})` : `${level}`;
+    // Show level with prestige marker and faction icon
+    const levelText = prestige > 0 ? `${factionIcon} ${level} (Prestígio ${prestige}) - ${factionName}` : `${factionIcon} ${level} - ${factionName}`;
+    document.getElementById('display-level').textContent = levelText;
     document.getElementById('display-runthrough').textContent = pmcRunthrough.toLocaleString();
     document.getElementById('display-hours').textContent = pmcHours.toLocaleString();
 
@@ -395,27 +557,24 @@ function calculateLevel(exp) {
     if (exp === 0) return 1;
     
     // Tarkov level experience table (CUMULATIVE totals)
-    // Source: tarkov.dev GraphQL API - handbook.playerLevels
+    // Source: https://escapefromtarkov.fandom.com/wiki/Experience
     const levels = [
-        0, 1000, 5017, 13449, 27705, 49182, 79205, 119010, 169706, 232329, 307807,
-        396970, 500541, 619134, 753248, 903263, 1069436, 1251897, 1450644, 1665541, 1896317,
-        2142563, 2403393, 2677775, 2964523, 3261631, 3566936, 3889112, 4219665, 4557928, 4903191,
-        5246322, 5591298, 5932125, 6271954, 6611383, 6943182, 7265095, 7573434, 7843765, 8089125,
-        8334485, 8550515, 8732551, 8875611, 8974386, 9023228, 9072070, 9187857, 9382463, 9664738,
-        10042313, 10522438, 11112288, 11818823, 12648573, 13607648, 14701648, 15935648, 17314298, 18842098,
-        20523298, 22361848, 24361348, 26524898, 28855148, 31353998, 34023048, 36863448, 39875848, 43060198,
-        46416248, 49943398, 53640798, 57507298, 61541648, 65742098, 70106248, 74631298, 79313998, 84150048,
-        89135598, 94266348, 99537648, 104944398, 110480998, 116141498, 121919348, 127807648, 133799148, 139886148,
-        146060498, 152313548, 158636198, 165018948, 171451798, 177924148, 184424898, 190942348, 197464398, 203978698,
-        210472448, 216932398, 223344898, 229695798, 235970498
+        0, 1000, 4017, 8432, 14256, 21477, 30023, 39936, 51204, 63723,           // 1-10
+        77563, 93279, 115302, 143253, 177337, 217885, 264432, 316851, 374400, 437465,  // 11-20
+        505161, 577978, 656347, 741150, 836066, 944133, 1066259, 1199423, 1343743, 1499338, // 21-30
+        1666320, 1846664, 2043449, 2258436, 2492126, 2750217, 3032022, 3337766, 3663831, 4010481, // 31-40
+        4377862, 4785793, 5182399, 5627732, 6102063, 6690287, 7189442, 7779792, 8401607, 9455144, // 41-50
+        9740666, 10458431, 11219666, 12024744, 12874041, 13767918, 14706741, 15690872, 16720667, 17816442, // 51-60
+        19041492, 20360945, 21792266, 23350443, 25098462, 27100775, 29581231, 33028574, 37953544, 44260543, // 61-70
+        51901513, 60887711, 71228846, 82933459, 96009180, 110462910, 126300949, 144924572, 172016256 // 71-79
     ];
 
     // Find the highest level where experience requirement is met
-    // Note: The table is offset - index 0 represents level 1, but we need to add 12 to match tarkov.dev
+    // Note: Index 0 represents level 1, so we add 1
     let level = 1;
     for (let i = levels.length - 1; i >= 0; i--) {
         if (exp >= levels[i]) {
-            level = i + 13; // Adjusted offset to match tarkov.dev level calculation
+            level = i + 1; // Index 0 = Level 1
             break;
         }
     }
@@ -423,45 +582,32 @@ function calculateLevel(exp) {
     return level;
 }
 
-// Save configuration to Twitch
-async function saveConfiguration(event) {
+// Save configuration directly (without fetching stats first)
+async function saveConfigurationDirect(event) {
     event.preventDefault();
 
-    if (!playerData) {
-        showMessage('❌ Fetch your stats first!', 'error');
+    const playerId = document.getElementById('player-id').value.trim();
+    
+    if (!playerId || playerId.length < 4) {
+        showMessage('❌ Please enter a valid Player ID (min 4 digits)', 'error');
         return;
     }
 
     const config = {
-        playerId: playerData.playerId || playerData.aid,
-        nickname: playerData.info.nickname,
-        raids: document.getElementById('stats-raids').value,
-        kills: document.getElementById('stats-kills').value,
-        deaths: document.getElementById('stats-deaths').value,
-        survived: document.getElementById('stats-survived').value,
-        runthrough: document.getElementById('stats-runthrough').value,
-        hours: document.getElementById('stats-hours').value,
-        kd: document.getElementById('stats-kd').value,
-        sr: document.getElementById('stats-sr').value,
-        level: parseInt(document.getElementById('stats-level').value, 10) || 0,
-        prestigeLevel: playerData.info.prestigeLevel || 0,
-        side: playerData.info.side || playerData.info.faction || '',
-        achievements: playerData.achievements || {},
-        lastUpdated: new Date().toISOString(),
-        autoRefresh: document.getElementById('auto-refresh').checked
+        playerId: playerId,
+        autoRefresh: document.getElementById('auto-refresh').checked,
+        lastUpdated: new Date().toISOString()
     };
     
-    console.log('💾 Saving config:', config);
+    console.log('💾 Saving config (ID only):', config);
 
     try {
         if (twitch) {
             twitch.configuration.set('broadcaster', '1', JSON.stringify(config));
-            showMessage('✅ Configuration saved successfully!', 'success');
+            showMessage('✅ Player ID saved! Stats will load automatically in the panel.', 'success');
             console.log('💾 Config saved:', config);
             
-            // Setup auto-refresh if enabled
-            setupAutoRefresh(config.autoRefresh);
-            // Also write to localStorage so a locally-open panel page can pick up the change
+            // Write to localStorage so panel can detect change
             try {
                 const payload = { config, ts: Date.now() };
                 localStorage.setItem('tarkov_ext_config', JSON.stringify(payload));
@@ -470,7 +616,7 @@ async function saveConfiguration(event) {
             }
         } else {
             console.log('📝 Config (no Twitch):', config);
-            showMessage('✅ Configuration ready! (Twitch not detected in test)', 'success');
+            showMessage('✅ Player ID saved! Open the panel to see your stats.', 'success');
             // In non-Twitch local testing, still write to localStorage for the panel to detect
             try {
                 const payload = { config, ts: Date.now() };
@@ -499,22 +645,7 @@ function loadSavedConfig() {
                 document.getElementById('player-id').value = data.playerId || '';
                 document.getElementById('auto-refresh').checked = data.autoRefresh !== false;
                 
-                // If we have stats, display them
-                if (data.raids) {
-                    document.getElementById('display-raids').textContent = data.raids;
-                    document.getElementById('display-kills').textContent = data.kills;
-                    document.getElementById('display-deaths').textContent = data.deaths;
-                    document.getElementById('display-survived').textContent = data.survived;
-                    document.getElementById('display-kd').textContent = data.kd;
-                    document.getElementById('display-sr').textContent = data.sr + '%';
-                    document.getElementById('display-level').textContent = data.level;
-                    document.getElementById('display-runthrough').textContent = data.runthrough || '0';
-                    document.getElementById('display-hours').textContent = data.hours || '0';
-                    
-                    document.getElementById('stats-section').style.display = 'block';
-                }
-                
-                setupAutoRefresh(data.autoRefresh);
+                updateSaveButtonState();
             } catch (e) {
                 console.error('❌ Parse config error:', e);
             }

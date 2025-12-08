@@ -5,22 +5,10 @@ const axios = require('axios');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 3000;
 
 // Cache configurado para 10 minutos
 const cache = new NodeCache({ stdTTL: 600, checkperiod: 120 });
-
-// Global error handlers (sem encerrar o processo)
-process.on('uncaughtException', (error) => {
-    console.error('❌ Uncaught Exception:', error);
-    console.error('Stack:', error.stack);
-    // NÃO chamar process.exit() - deixar o servidor continuar
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
-    // NÃO chamar process.exit() - deixar o servidor continuar
-});
 
 // Middleware
 app.use(cors());
@@ -39,7 +27,6 @@ app.get('/', (req, res) => {
         message: 'Tarkov Stats API - Backend para Twitch Extension',
         version: '1.0.0',
         endpoints: {
-            playerById: '/api/player/id/:id',
             player: '/api/player/:nickname/:id',
             search: '/api/search/:nickname'
         }
@@ -49,29 +36,38 @@ app.get('/', (req, res) => {
 // ⚠️ IMPORTANTE: Este endpoint DEVE vir ANTES de /api/player/:nickname/:id
 // Buscar player por ID usando API JSON pública (SEM CAPTCHA!)
 app.get('/api/player/id/:id', async (req, res) => {
+    console.log('🔍 Request received for player ID:', req.params.id);
     const { id } = req.params;
     const cacheKey = `player_id_${id}`;
-
-    console.log(`🔍 Fetching player ID: ${id}`);
+    
+    console.log('\n' + '█'.repeat(80));
+    console.log('🎯 BUSCANDO PLAYER VIA API JSON');
+    console.log(`📋 Player ID: ${id}`);
+    console.log('█'.repeat(80) + '\n');
 
     try {
         // Verificar cache primeiro
         const cached = cache.get(cacheKey);
         if (cached) {
             console.log(`✅ Cache hit for ID ${id}`);
-            return res.json(cached);
+            return res.json({
+                success: true,
+                cached: true,
+                data: cached
+            });
         }
+
+        console.log(`🔄 Fetching data from JSON API...`);
 
         // Buscar dados do JSON público (SEM CAPTCHA!)
         const jsonUrl = `https://players.tarkov.dev/profile/${id}.json`;
-        console.log(`📡 Fetching: ${jsonUrl}`);
-
+        console.log(`📡 URL: ${jsonUrl}`);
+        
         const response = await axios.get(jsonUrl, {
-            timeout: 15000,
+            timeout: 10000,
             headers: {
                 'User-Agent': 'Twitch-Extension-Tarkov-Stats/1.0'
-            },
-            validateStatus: (status) => status < 500 // Aceitar 4xx sem lançar erro
+            }
         });
 
         const profileData = response.data;
@@ -96,43 +92,53 @@ app.get('/api/player/id/:id', async (req, res) => {
             return item?.Value || 0;
         };
         
-        // Função para calcular level baseado em experiência
-        function calculateLevel(exp) {
-            if (exp === 0) return 1;
-            
-            // Tabela de XP por level (CUMULATIVE totals oficial do Tarkov)
-            // Source: https://escapefromtarkov.fandom.com/wiki/Experience
-            const levels = [
-                0, 1000, 4017, 8432, 14256, 21477, 30023, 39936, 51204, 63723,           // 1-10
-                77563, 93279, 115302, 143253, 177337, 217885, 264432, 316851, 374400, 437465,  // 11-20
-                505161, 577978, 656347, 741150, 836066, 944133, 1066259, 1199423, 1343743, 1499338, // 21-30
-                1666320, 1846664, 2043449, 2258436, 2492126, 2750217, 3032022, 3337766, 3663831, 4010481, // 31-40
-                4377862, 4785793, 5182399, 5627732, 6102063, 6690287, 7189442, 7779792, 8401607, 9455144, // 41-50
-                9740666, 10458431, 11219666, 12024744, 12874041, 13767918, 14706741, 15690872, 16720667, 17816442, // 51-60
-                19041492, 20360945, 21792266, 23350443, 25098462, 27100775, 29581231, 33028574, 37953544, 44260543, // 61-70
-                51901513, 60887711, 71228846, 82933459, 96009180, 110462910, 126300949, 144924572, 172016256 // 71-79
-            ];
-
-            // Find the highest level where experience requirement is met
-            let level = 1;
-            for (let i = levels.length - 1; i >= 0; i--) {
-                if (exp >= levels[i]) {
-                    level = i + 1; // Index 0 = Level 1, so we add 1
-                    break;
-                }
-            }
-            
-            return level;
-        }
-        
         // Extrair stats
         const raids = findNestedStat('Sessions', 'Pmc');
         const kills = findStat('Kills');
         const deaths = findStat('Deaths');
         const survived = findNestedStat('ExitStatus', 'Survived', 'Pmc');
         const runthrough = findNestedStat('ExitStatus', 'Runner', 'Pmc');
+        
+        console.log('=== DEBUG STATS ===');
+        console.log('Raids:', raids);
+        console.log('Kills:', kills);
+        console.log('Deaths:', deaths);
+        console.log('Survived:', survived);
+        
         const kd = deaths > 0 ? (kills / deaths).toFixed(2) : kills.toFixed(2);
         const sr = raids > 0 ? ((survived / raids) * 100).toFixed(2) : '0.00';
+        
+        console.log('K/D calculated:', kd);
+        console.log('SR calculated:', sr);
+        
+        // Função para calcular level baseado em experiência (aproximação)
+        // Tarkov usa progressão exponencial, esta é uma aproximação baseada em dados reais
+        function calculateLevel(exp) {
+            if (!exp || exp <= 0) return 1;
+            
+            // Tabela simplificada de XP por level (aproximada)
+            const xpTable = [
+                0, 1000, 4017, 8432, 14256, 21477, 30023, 39936, 51204, 63723, // 1-10
+                77563, 92713, 109174, 126946, 146029, 166423, 188129, 211147, 235477, 261119, // 11-20
+                288073, 316339, 345917, 376807, 409009, 442523, 477349, 513487, 550937, 589699, // 21-30
+                629773, 671159, 713857, 757867, 803189, 849823, 897769, 947027, 997597, 1049479, // 31-40
+                1102673, 1157179, 1212997, 1270127, 1328569, 1388323, 1449389, 1511767, 1575457, 1640459, // 41-50
+                1706773, 1774399, 1843337, 1913587, 1985149, 2058023, 2132209, 2207707, 2284517, 2362639, // 51-60
+                2442073, 2522819, 2604877, 2688247, 2772929, 2858923, 2946229, 3034847, 3124777, 3216019 // 61-70
+            ];
+            
+            // Encontrar o level correspondente
+            let level = 1;
+            for (let i = 0; i < xpTable.length; i++) {
+                if (exp >= xpTable[i]) {
+                    level = i + 1;
+                } else {
+                    break;
+                }
+            }
+            
+            return Math.min(level, 79); // Max level sem prestigio é 79
+        }
         
         const result = {
             success: true,
@@ -141,7 +147,6 @@ app.get('/api/player/id/:id', async (req, res) => {
             profileUrl: `https://tarkov.dev/players/regular/${id}`,
             stats: {
                 level: calculateLevel(profileData.info?.experience || 0),
-                experience: profileData.info?.experience || 0, // Include experience for frontend calculation
                 faction: profileData.info?.side || 'Unknown',
                 prestige: profileData.info?.prestigeLevel || 0,
                 raids: raids,
@@ -153,60 +158,47 @@ app.get('/api/player/id/:id', async (req, res) => {
                 runthrough: runthrough,
                 hours: Math.floor((profileData.pmcStats?.eft?.totalInGameTime || 0) / 3600)
             },
-            achievements: profileData.achievements || {},
             timestamp: new Date().toISOString()
         };
 
         if (result.stats.raids === 0 && result.stats.kills === 0) {
             return res.status(404).json({
                 success: false,
-                error: 'Player not found or no stats available'
+                error: 'Player not found or no stats available',
+                message: 'Verifique se o Player ID está correto'
             });
         }
 
-        // Salvar no cache
         cache.set(cacheKey, result);
-        console.log(`✅ Player ${result.nickname} cached`);
-
-        return res.json(result);
+        console.log(`✅ Stats fetched successfully for ${result.nickname} (${id})`);
+        console.log(`📊 Raids: ${result.stats.raids}, Kills: ${result.stats.kills}, K/D: ${result.stats.kd}`);
+        
+        res.json({
+            success: true,
+            cached: false,
+            data: result
+        });
 
     } catch (error) {
-        console.error('❌ Error fetching player:', error.message);
+        console.error(`❌ Error fetching stats for ID ${id}:`, error.message);
         
-        // Evitar crash verificando se a resposta já foi enviada
-        if (res.headersSent) {
-            console.error('⚠️ Response already sent, skipping error response');
-            return;
+        if (error.response?.status === 404) {
+            return res.status(404).json({
+                success: false,
+                error: 'Player not found',
+                message: 'Player ID não encontrado no tarkov.dev'
+            });
         }
         
-        // Determinar código de status apropriado
-        let statusCode = 500;
-        let errorMessage = 'Failed to fetch player data';
-        
-        if (error.response) {
-            // Erro da API externa
-            statusCode = error.response.status === 404 ? 404 : 500;
-            errorMessage = error.response.status === 404 
-                ? 'Player not found' 
-                : 'External API error';
-        } else if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
-            statusCode = 504;
-            errorMessage = 'Request timeout';
-        } else if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
-            statusCode = 503;
-            errorMessage = 'Service unavailable';
-        }
-        
-        return res.status(statusCode).json({
+        res.status(500).json({
             success: false,
-            error: errorMessage,
-            message: error.message,
-            code: error.code || 'UNKNOWN'
+            error: error.message,
+            message: 'Erro ao buscar stats do tarkov.dev'
         });
     }
 });
 
-// Buscar stats de um player específico (endpoint antigo - mantido para compatibilidade)
+// Buscar stats de um player específico (COM nickname)
 app.get('/api/player/:nickname/:id', async (req, res) => {
     const { nickname, id } = req.params;
     const cacheKey = `player_${nickname}_${id}`;
@@ -332,24 +324,17 @@ app.get('/api/cache/stats', (req, res) => {
     });
 });
 
-// Error handler (único, sem duplicação)
+// Error handler
 app.use((error, req, res, next) => {
-    console.error('❌ Server error:', error);
-    
-    // Verificar se a resposta já foi enviada
-    if (res.headersSent) {
-        return next(error);
-    }
-    
+    console.error('Server error:', error);
     res.status(500).json({
         success: false,
-        error: 'Internal server error',
-        message: error.message
+        error: 'Internal server error'
     });
 });
 
 // Start server
-const server = app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, () => {
     console.log(`
 ╔═══════════════════════════════════════════════╗
 ║   🎮 Tarkov Stats API Server                 ║
@@ -362,39 +347,12 @@ const server = app.listen(PORT, '0.0.0.0', () => {
     `);
 });
 
-// Configurar keep-alive para evitar crashes
-server.keepAliveTimeout = 65000;
-server.headersTimeout = 66000;
-
 server.on('error', (error) => {
-    console.error('❌ Server error:', error.message);
+    console.error('❌ Erro ao iniciar servidor:', error.message);
     if (error.code === 'EADDRINUSE') {
-        console.error(`❌ Port ${PORT} already in use!`);
+        console.error(`❌ Porta ${PORT} já está em uso!`);
     }
     process.exit(1);
-});
-
-// Graceful shutdown (apenas quando realmente necessário)
-let isShuttingDown = false;
-
-process.on('SIGTERM', () => {
-    if (isShuttingDown) return;
-    isShuttingDown = true;
-    console.log('📴 SIGTERM signal received: closing HTTP server');
-    server.close(() => {
-        console.log('✅ HTTP server closed');
-        process.exit(0);
-    });
-});
-
-process.on('SIGINT', () => {
-    if (isShuttingDown) return;
-    isShuttingDown = true;
-    console.log('📴 SIGINT signal received: closing HTTP server');
-    server.close(() => {
-        console.log('✅ HTTP server closed');
-        process.exit(0);
-    });
 });
 
 module.exports = app;
