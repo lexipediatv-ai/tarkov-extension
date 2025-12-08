@@ -36,11 +36,12 @@ window.onload = function() {
 function updateSaveButtonState() {
     const playerId = document.getElementById('player-id').value.trim();
     const saveButton = document.getElementById('save-button');
-    const isValid = playerId.length >= 4;
-    saveButton.disabled = !isValid;
+    if (saveButton) {
+        const isValid = playerId.length >= 4;
+        saveButton.disabled = !isValid;
+    }
 }
 
-// Wait for DOM to be ready before attaching event listeners
 // Wait for DOM to be ready before attaching event listeners
 document.addEventListener('DOMContentLoaded', function() {
     // Listen to input changes
