@@ -327,28 +327,67 @@ function setupAutoRefresh(playerId) {
         try {
             const timestamp = Date.now();
 
-            // 1) Try hosted proxy candidates first (online-first strategy). Start with HOSTED_PROXY_BASE
-            // (usually same-origin), then try known fallbacks if the first returns non-ok or is missing.
+            // 1) Try hosted proxy candidates first (online-first strategy). We'll try to be fast and
+            // reduce noisy console/network errors by:
+            //  - preferring a previously cached working proxy (localStorage)
+            //  - attempting proxies in parallel with a short timeout and using the first success
             const proxiesToTry = [];
-            if (HOSTED_PROXY_BASE && HOSTED_PROXY_BASE.length > 0) proxiesToTry.push(HOSTED_PROXY_BASE);
+            // prefer cached working proxy to avoid repeated attempts
+            try {
+                const cached = localStorage.getItem('tarkov_working_proxy');
+                if (cached && !proxiesToTry.includes(cached)) proxiesToTry.push(cached);
+            } catch (e) { /* ignore */ }
+            if (HOSTED_PROXY_BASE && HOSTED_PROXY_BASE.length > 0 && !proxiesToTry.includes(HOSTED_PROXY_BASE)) proxiesToTry.push(HOSTED_PROXY_BASE);
             for (const p of FALLBACK_HOSTED_PROXIES) if (!proxiesToTry.includes(p)) proxiesToTry.push(p);
 
-            for (const base of proxiesToTry) {
+            // helper: fetch with timeout
+            const fetchWithTimeout = (url, opts = {}, timeout = 3000) => {
+                return new Promise((resolve, reject) => {
+                    const controller = new AbortController();
+                    const id = setTimeout(() => {
+                        controller.abort();
+                    }, timeout);
+                    fetch(url, Object.assign({}, opts, { signal: controller.signal, cache: 'no-store' }))
+                        .then(r => {
+                            clearTimeout(id);
+                            resolve(r);
+                        })
+                        .catch(err => {
+                            clearTimeout(id);
+                            reject(err);
+                        });
+                });
+            };
+
+            // Try proxies in parallel using Promise.any for speed; fall back to sequential if none succeed.
+            try {
+                const attempts = proxiesToTry.map(base => {
+                    const url = `${base}/api/profile/${encodeURIComponent(playerId)}?_=${timestamp}`;
+                    return fetchWithTimeout(url, {}, 3000).then(resp => {
+                        if (!resp.ok) throw new Error('Status ' + resp.status);
+                        return resp.json();
+                    });
+                });
+                // Promise.any resolves with the first fulfilled promise
+                const hdata = await Promise.any(attempts);
+                const stats = extractStats(hdata);
+                displayStats(stats);
+                try { localStorage.setItem('tarkov_ext_config', JSON.stringify({ config: { playerId, ...stats, lastUpdated: new Date().toISOString(), autoRefresh: true } })); } catch(e){}
+                // cache the working proxy (derive from response URL if available)
                 try {
-                    const hostedUrl = `${base}/api/profile/${encodeURIComponent(playerId)}?_=${timestamp}`;
-                    const hostedResp = await fetch(hostedUrl, { cache: 'no-store' });
-                    if (hostedResp.ok) {
-                        const hdata = await hostedResp.json();
-                        const stats = extractStats(hdata);
-                        displayStats(stats);
-                        try { localStorage.setItem('tarkov_ext_config', JSON.stringify({ config: { playerId, ...stats, lastUpdated: new Date().toISOString(), autoRefresh: true } })); } catch(e){}
-                        return;
+                    const lastUrl = hdata && hdata._proxiedFrom ? hdata._proxiedFrom : null;
+                    // if proxiedFrom not present, try to infer from response URL in fetch (not available here)
+                    if (!lastUrl) {
+                        // fallback: store HOSTED_PROXY_BASE if it succeeded
+                        if (HOSTED_PROXY_BASE) localStorage.setItem('tarkov_working_proxy', HOSTED_PROXY_BASE);
                     } else {
-                        console.debug('Hosted proxy', base, 'returned', hostedResp.status);
+                        localStorage.setItem('tarkov_working_proxy', lastUrl);
                     }
-                } catch (he) {
-                    console.debug('Hosted proxy fetch failed for', base, ':', he);
-                }
+                } catch (e) {}
+                return;
+            } catch (errAny) {
+                // no hosted proxy succeeded quickly; fall back to sequential approach below
+                console.debug('No hosted proxy responded quickly, falling back to sequential fetchs');
             }
 
             // 2) Try public CORS proxy (AllOrigins) — best-effort, may be rate-limited
