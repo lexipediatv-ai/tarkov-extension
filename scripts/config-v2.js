@@ -7,14 +7,11 @@ let playerData = null;
 let autoRefreshInterval = null;
 let _achievementsCache = null; // cached achievements metadata
 
-// Determine hosted proxy base at runtime to avoid cross-deploy CORS issues.
-// Priority:
-// 1) window.FORCE_HOSTED_PROXY_BASE (if you want to force a specific proxy)
-// 2) window.location.origin (use same origin as the page to call /api/* on the same deploy)
-// 3) empty string = skip hosted proxy and rely on public fallbacks
+// Hosted proxy base (set to the verified working deploy to avoid cross-deploy CORS issues)
+// If you need to override for testing, set window.FORCE_HOSTED_PROXY_BASE before scripts run.
 const HOSTED_PROXY_BASE = (typeof window !== 'undefined' && window.FORCE_HOSTED_PROXY_BASE)
     ? window.FORCE_HOSTED_PROXY_BASE
-    : (typeof window !== 'undefined' ? window.location.origin : '');
+    : 'https://tarkov-stats-fl8kf6gcg-marcelos-projects-fb95b857.vercel.app';
 
 // Known official prestige asset URLs (preferred)
 const PRESTIGE_OFFICIAL_ASSETS = {
