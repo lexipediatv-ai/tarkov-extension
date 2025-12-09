@@ -4,177 +4,19 @@
 let twitch = null;
 let refreshInterval = null;
 let turnstileToken = null;
-
-// Helper: Calculate level from experience points
-function calculateLevel(exp) {
-    if (!exp || exp <= 0) return 1;
-    
-    const xpTable = [
-        0, 1000, 4017, 8432, 14256, 21477, 30023, 39936, 51204, 63723,
-        77563, 92713, 109174, 126946, 146029, 166423, 188129, 211147, 235477, 261119,
-        288073, 316339, 345917, 376807, 409009, 442523, 477349, 513487, 550937, 589699,
-        629773, 671159, 713857, 757867, 803189, 849823, 897769, 947027, 997597, 1049479,
-        1102673, 1157179, 1212997, 1270127, 1328569, 1388323, 1449389, 1511767, 1575457, 1640459,
-        1706773, 1774399, 1843337, 1913587, 1985149, 2058023, 2132209, 2207707, 2284517, 2362639,
-        2442073, 2522819, 2604877, 2688247, 2772929, 2858923, 2946229, 3034847, 3124777, 3216019
-    ];
-    
-    let level = 1;
-    for (let i = 0; i < xpTable.length; i++) {
-        if (exp >= xpTable[i]) {
-            level = i + 1;
-        } else {
-            break;
-        }
-    }
-    
-    return Math.min(level, 79);
-}
-
-// Helper: Extract stat from overAllCounters array
-function findStat(items, key) {
-    const item = items.find(i => 
-        Array.isArray(i.Key) && i.Key.length === 1 && i.Key[0] === key
-    );
-    return item?.Value || 0;
-}
-
-// Helper: Extract nested stat from overAllCounters array
-function findNestedStat(items, key1, key2, key3) {
-    const item = items.find(i => 
-        Array.isArray(i.Key) && 
-        i.Key[0] === key1 && 
-        i.Key[1] === key2 &&
-        (!key3 || i.Key[2] === key3)
-    );
-    return item?.Value || 0;
-}
-
-// Helper: Process raw JSON data from tarkov.dev
-function processRawData(rawData, playerId) {
-    const items = rawData.pmcStats?.eft?.overAllCounters?.Items || [];
-    
-    const raids = findNestedStat(items, 'Sessions', 'Pmc');
-    const kills = findStat(items, 'Kills');
-    const deaths = findStat(items, 'Deaths');
-    const survived = findNestedStat(items, 'ExitStatus', 'Survived', 'Pmc');
-    const runthrough = findNestedStat(items, 'ExitStatus', 'Runner', 'Pmc');
-    
-    const kd = deaths > 0 ? (kills / deaths).toFixed(2) : kills.toFixed(2);
-    const sr = raids > 0 ? ((survived / raids) * 100).toFixed(2) : '0.00';
-    
-    return {
-        success: true,
-        nickname: rawData.info?.nickname || 'Unknown',
-        id: playerId,
-        stats: {
-            level: calculateLevel(rawData.info?.experience || 0),
-            faction: rawData.info?.side || 'Unknown',
-            prestige: rawData.info?.prestigeLevel || 0,
-            raids: raids,
-            kills: kills,
-            deaths: deaths,
-            kd: parseFloat(kd),
-            sr: parseFloat(sr),
-            survived: survived,
-            runthrough: runthrough,
-            hours: Math.floor((rawData.pmcStats?.eft?.totalInGameTime || 0) / 3600)
-        }
-    };
-}
-
-// Fetch stats with hybrid approach (backend + JSON fallback)
-async function fetchStatsHybrid(playerId) {
-    let result = null;
-    
-    try {
-        // Try backend first
-        const backendUrl = `https://tarkov-stats-bdojw4788-marcelos-projects-fb95b857.vercel.app/api/player/id/${playerId}`;
-        const backendResponse = await fetch(backendUrl, {
-            method: 'GET',
-            headers: { 'Accept': 'application/json' },
-            signal: AbortSignal.timeout(3000)
-        });
-
-        if (backendResponse.ok) {
-            result = await backendResponse.json();
-            console.log('✅ Stats from backend');
-            return result;
-        }
-    } catch (error) {
-        console.warn('⚠️ Backend unavailable, using JSON direct');
-    }
-    
-    // Fallback to JSON
-    const jsonUrl = `https://players.tarkov.dev/profile/${playerId}.json`;
-    const jsonResponse = await fetch(jsonUrl);
-    
-    if (!jsonResponse.ok) {
-        throw new Error('Player not found');
-    }
-    
-    const rawData = await jsonResponse.json();
-    return processRawData(rawData, playerId);
-}
-
-// Fetch and display stats (new function)
-async function fetchAndDisplayStats(playerId) {
-    try {
-        showLoading();
-        
-        const result = await fetchStatsHybrid(playerId);
-        
-        if (result && result.success) {
-            // Adapt backend format to display format
-            const displayData = {
-                nickname: result.nickname,
-                playerId: playerId,
-                level: result.stats.level,
-                prestigeLevel: result.stats.prestige,
-                side: result.stats.faction,
-                raids: result.stats.raids,
-                kills: result.stats.kills,
-                deaths: result.stats.deaths,
-                survived: result.stats.survived,
-                runthrough: result.stats.runthrough,
-                hours: result.stats.hours,
-                kd: result.stats.kd,
-                sr: result.stats.sr,
-                achievements: result.achievements || {}
-            };
-            
-            displayStats(displayData);
-            hideError();
-        } else {
-            throw new Error('Invalid stats format');
-        }
-    } catch (error) {
-        console.error('❌ Error fetching stats:', error);
-        showError('Erro ao carregar stats: ' + error.message);
-    }
-}
-
-// Show loading state
-function showLoading() {
-    const nameEl = document.getElementById('player-name-header');
-    if (nameEl) nameEl.textContent = '⏳ Loading...';
-}
-
-// Hide error message
-function hideError() {
-    const errorEl = document.querySelector('.error-message');
-    if (errorEl) errorEl.style.display = 'none';
-}
+// Determine hosted proxy base at runtime to avoid cross-deploy CORS issues.
+// Priority:
+// 1) window.FORCE_HOSTED_PROXY_BASE (if you want to force a specific proxy)
+// 2) window.location.origin (use same origin as the page to call /api/* on the same deploy)
+// 3) empty string = skip hosted proxy and rely on public fallbacks
+const HOSTED_PROXY_BASE = (typeof window !== 'undefined' && window.FORCE_HOSTED_PROXY_BASE)
+    ? window.FORCE_HOSTED_PROXY_BASE
+    : (typeof window !== 'undefined' ? window.location.origin : '');
 
 // Initialize extension
 function init() {
-    console.log('🚀 Panel initializing...');
-    console.log('📍 window.Twitch available:', !!window.Twitch);
-    console.log('📍 window.Twitch.ext available:', !!(window.Twitch && window.Twitch.ext));
-    
     if (window.Twitch && window.Twitch.ext) {
         twitch = window.Twitch.ext;
-        console.log('✅ Using Twitch Extension API');
         
         twitch.onAuthorized((auth) => {
             console.log('✅ Extension authorized');
@@ -186,117 +28,54 @@ function init() {
             loadConfiguration();
         });
     } else {
-        console.log('⚠️ Twitch not available - loading from localStorage');
-        
-        // Try to read localStorage config (written by config page)
-        try {
-            const raw = localStorage.getItem('tarkov_ext_config');
-            console.log('📦 localStorage content:', raw);
-            
-            if (raw) {
-                const parsed = JSON.parse(raw);
-                console.log('📥 Parsed config:', parsed);
-                
-                if (parsed && parsed.config) {
-                    const config = parsed.config;
-                    
-                    // Check if new format (just playerId) or old format (full stats)
-                    if (config.playerId && !config.nickname) {
-                        console.log('🆕 New format detected - fetching stats for:', config.playerId);
-                        fetchAndDisplayStats(config.playerId);
-                        
-                        // Setup auto-refresh (30 seconds)
-                        if (config.autoRefresh !== false) {
-                            setupAutoRefresh(config.playerId);
-                        }
-                    } else if (config.nickname) {
-                        console.log('📊 Old format detected - displaying saved stats');
-                        displayStats(config);
-                    } else {
-                        console.warn('⚠️ Unknown config format');
-                        showError('Configure a extensão primeiro!');
-                    }
-                } else {
-                    console.warn('⚠️ No config in localStorage');
-                    showError('Configure a extensão primeiro!');
-                }
-            } else {
-                console.warn('⚠️ localStorage is empty');
-                showError('Configure a extensão primeiro!');
-            }
-        } catch (e) {
-            console.error('❌ Error reading localStorage:', e);
-            showError('Erro ao carregar configuração');
-        }
+        console.log('⚠️ Twitch not available, loading demo data');
+        loadDemoData();
     }
 
-    // Listen for storage changes (when config page saves)
-    window.addEventListener('storage', (e) => {
-        if (e.key === 'tarkov_ext_config' && e.newValue) {
-            console.log('🔄 Storage changed, reloading config...');
-            try {
-                const parsed = JSON.parse(e.newValue);
-                if (parsed && parsed.config && parsed.config.playerId) {
-                    fetchAndDisplayStats(parsed.config.playerId);
-                    
-                    // Restart auto-refresh with new config
-                    if (parsed.config.autoRefresh !== false) {
-                        setupAutoRefresh(parsed.config.playerId);
-                    }
+    // Also try to read a localStorage-synced config (written by config page when saving)
+    try {
+        const raw = localStorage.getItem('tarkov_ext_config');
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && parsed.config) {
+                console.log('📥 Loaded local config from localStorage (init)');
+                displayStats(parsed.config);
+                // If the saved config contains a playerId, start auto-refresh so the
+                // panel will fetch the public JSON profile immediately and on interval.
+                if (parsed.config.playerId) {
+                    setupAutoRefresh(parsed.config.playerId);
                 }
-            } catch (err) {
-                console.error('Error handling storage change:', err);
             }
         }
-    });
+    } catch (e) {
+        console.warn('Could not read localStorage config on init:', e);
+    }
+
+    // Auto-refresh is handled by storage listener and Twitch config.onChanged
 }
 
 // Load configuration from Twitch
-async function loadConfiguration() {
-    if (!twitch) {
-        console.warn('⚠️ loadConfiguration called but twitch is null');
-        return;
-    }
-    
-    console.log('📡 Reading broadcaster config...');
-    console.log('📦 Raw config:', twitch.configuration.broadcaster);
+function loadConfiguration() {
+    if (!twitch) return;
     
     const config = twitch.configuration.broadcaster?.content;
-    
-    console.log('📝 Config content:', config);
     
     if (config) {
         try {
             const data = JSON.parse(config);
-            console.log('📥 Twitch configuration loaded:', data);
-            console.log('📍 Has playerId:', !!data.playerId);
-            console.log('📍 Has nickname:', !!data.nickname);
+            console.log('📥 Configuration loaded:', data);
+            displayStats(data);
             
-            // Check if we have a playerId - if yes, fetch stats automatically
-            if (data.playerId) {
-                console.log('🚀 Fetching stats for Player ID:', data.playerId);
-                await fetchAndDisplayStats(data.playerId);
-                
-                // Setup auto-refresh if enabled (30 seconds)
-                if (data.autoRefresh !== false) {
-                    setupAutoRefresh(data.playerId);
-                }
-            } else if (data.nickname) {
-                // Old format with full stats - display them
-                console.log('📊 Old format with full stats');
-                displayStats(data);
-            } else {
-                console.warn('⚠️ Config has no playerId or nickname');
-                showError('Configure a extensão primeiro!');
+            // Setup auto-refresh if enabled
+            if (data.autoRefresh && data.playerId) {
+                setupAutoRefresh(data.playerId);
             }
         } catch (e) {
             console.error('❌ Error parsing config:', e);
-            console.error('❌ Config string was:', config);
             showError('Erro ao carregar configuração');
         }
     } else {
-        console.log('⚠️ No Twitch configuration found');
-        console.log('📍 Broadcaster object:', twitch.configuration.broadcaster);
+        console.log('⚠️ No configuration found');
         showError('Configure a extensão primeiro!');
     }
 }
@@ -382,7 +161,8 @@ function displayPanelAchievements(achievements) {
     const container = document.getElementById('panel-achievements-container');
     if (!container) return;
 
-    const ids = Object.keys(achievements || {});
+    // Normalize achievement ids to strings (profile keys may be numbers)
+    const ids = Object.keys(achievements || {}).map(id => String(id));
     if (ids.length === 0) {
         container.style.display = 'none';
         container.innerHTML = '';
@@ -395,52 +175,126 @@ function displayPanelAchievements(achievements) {
     const grid = document.getElementById('panel-ach-grid');
 
     // Try to fetch achievement metadata from tarkov.dev GraphQL (best-effort)
-    fetch('https://api.tarkov.dev/graphql', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: `{
+    // Prefer hosted proxy for GraphQL (avoids CORS blocks). Online-only: no localhost usage.
+    const graphQlQuery = JSON.stringify({ query: `{
             achievements { id name imageLink normalizedRarity }
-        }` })
-    }).then(r => r.json()).then(json => {
-        const all = json.data?.achievements || [];
-        const map = new Map(all.map(a => [a.id, a]));
+        }` });
 
-        // Rarity order: legendary > epic > rare > uncommon > common
-        const rarityOrder = { 'legendary': 0, 'epic': 1, 'rare': 2, 'uncommon': 3, 'common': 4 };
+    (async () => {
+        let json = null;
 
-        // Create array with achievement data and sort by rarity (rarest first)
-        const achievementsData = ids.map(id => {
-            const a = map.get(id);
-            return {
-                id: id,
-                img: a?.imageLink || '',
-                name: a?.name || id,
-                rarity: a?.normalizedRarity || 'common',
-                rarityScore: rarityOrder[a?.normalizedRarity] ?? 4
-            };
-        }).sort((a, b) => a.rarityScore - b.rarityScore);
+        // 1) Hosted proxy (preferred for online deployment)
+        if (HOSTED_PROXY_BASE && HOSTED_PROXY_BASE.length > 0) {
+            try {
+                const h = await fetch(`${HOSTED_PROXY_BASE}/api/graphql`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: graphQlQuery,
+                    cache: 'no-store'
+                });
+                if (h.ok) json = await h.json();
+                else console.debug('Hosted GraphQL proxy returned', h.status);
+            } catch (he) {
+                console.debug('Hosted GraphQL proxy failed:', he);
+            }
+        }
+
+        // 2) Public CORS proxy (AllOrigins) — best-effort, may be rate-limited
+        if (!json) {
+            try {
+                const all = `https://api.allorigins.win/raw?url=${encodeURIComponent('https://api.tarkov.dev/graphql')}`;
+                const resp = await fetch(all, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: graphQlQuery,
+                    cache: 'no-store'
+                });
+                if (resp.ok) json = await resp.json();
+            } catch (e) {
+                console.debug('AllOrigins GraphQL proxy failed or rate-limited:', e);
+            }
+        }
+
+        // 3) Direct call as last resort (likely blocked by CORS in browser)
+        if (!json) {
+            try {
+                const r = await fetch('https://api.tarkov.dev/graphql', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: graphQlQuery
+                });
+                json = await r.json();
+            } catch (e) {
+                console.debug('Direct GraphQL fetch failed:', e);
+            }
+        }
+
+    const all = json?.data?.achievements || [];
+    // Normalize metadata keys as strings as well
+    const map = new Map(all.map(a => [String(a.id), a]));
+
+    // Build an array of achievement objects for the requested ids; ensure string keys
+    const found = ids.map(id => {
+        const key = String(id);
+        return map.get(key) || { id: key, name: key, imageLink: '', normalizedRarity: 'common' };
+    });
+
+        // Define rarity ordering (rarest first)
+        const rarityOrder = ['legendary','epic','rare','uncommon','common'];
+
+        // Sort by normalizedRarity using the ordering above; unknown => lowest priority
+        found.sort((a, b) => {
+            const ra = (a.normalizedRarity || 'common').toString().toLowerCase();
+            const rb = (b.normalizedRarity || 'common').toString().toLowerCase();
+            const ia = rarityOrder.indexOf(ra) >= 0 ? rarityOrder.indexOf(ra) : rarityOrder.length;
+            const ib = rarityOrder.indexOf(rb) >= 0 ? rarityOrder.indexOf(rb) : rarityOrder.length;
+            return ia - ib;
+        });
 
         // Render sorted achievements
-        achievementsData.forEach(achievement => {
+        found.forEach(a => {
+            const img = a?.imageLink || '';
+            const name = a?.name || a.id || '';
+            const rarity = (a?.normalizedRarity || 'common').toString().toLowerCase();
+
             const div = document.createElement('div');
-            div.className = `achievement-icon ${achievement.rarity}`;
-            div.title = `${achievement.name} (${achievement.rarity})`;
+            div.className = `achievement-icon ${rarity}`;
+            div.title = name;
+
             const image = document.createElement('img');
-            image.src = achievement.img;
-            image.alt = achievement.name;
+            // If imageLink is not present, use a small inline SVG placeholder (data URL)
+            if (img && img.length > 0) {
+                image.src = img;
+            } else {
+                // simple gray placeholder with a trophy mark
+                image.src = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+                    `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect rx="8" width="64" height="64" fill="#ddd"/><text x="50%" y="55%" font-size="28" text-anchor="middle" fill="#666" font-family="sans-serif">🏆</text></svg>`
+                );
+            }
+            image.alt = name;
+            // If remote image fails to load, replace with the placeholder inline SVG
+            image.onerror = function() {
+                this.onerror = null;
+                this.src = 'data:image/svg+xml;utf8,' + encodeURIComponent(
+                    `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><rect rx="8" width="64" height="64" fill="#ddd"/><text x="50%" y="55%" font-size="28" text-anchor="middle" fill="#666" font-family="sans-serif">🏆</text></svg>`
+                );
+            };
             div.appendChild(image);
             grid.appendChild(div);
         });
-    }).catch(() => {
-        // Fallback: show simple squares with IDs
-        ids.forEach(id => {
-            const div = document.createElement('div');
-            div.className = 'achievement-icon common';
-            div.title = id;
-            div.textContent = '🏆';
-            grid.appendChild(div);
-        });
-    });
+    })();
+    // If GraphQL failed entirely, show simple squares
+    setTimeout(() => {
+        if (!document.getElementById('panel-ach-grid') || document.getElementById('panel-ach-grid').children.length === 0) {
+            ids.forEach(id => {
+                const div = document.createElement('div');
+                div.className = 'achievement-icon common';
+                div.title = id;
+                div.textContent = '🏆';
+                grid.appendChild(div);
+            });
+        }
+    }, 1200);
 }
 
 // Setup auto-refresh
@@ -452,45 +306,85 @@ function setupAutoRefresh(playerId) {
     
     console.log('🔄 Setting up auto-refresh for player:', playerId);
     
-    // Refresh every 5 minutes
-    refreshInterval = setInterval(async () => {
+    // Immediately attempt a refresh now, then every 5 minutes
+    const doRefresh = async () => {
         console.log('🔄 Auto-refreshing stats...');
-        
         try {
-            // Get fresh Turnstile token if needed
+            const timestamp = Date.now();
+
+            // 1) Try hosted proxy first (online-first strategy)
+            if (HOSTED_PROXY_BASE && HOSTED_PROXY_BASE.length > 0) {
+                try {
+                    const hostedUrl = `${HOSTED_PROXY_BASE}/api/profile/${encodeURIComponent(playerId)}?_=${timestamp}`;
+                    const hostedResp = await fetch(hostedUrl, { cache: 'no-store' });
+                    if (hostedResp.ok) {
+                        const hdata = await hostedResp.json();
+                        const stats = extractStats(hdata);
+                        displayStats(stats);
+                        try { localStorage.setItem('tarkov_ext_config', JSON.stringify({ config: { playerId, ...stats, lastUpdated: new Date().toISOString(), autoRefresh: true } })); } catch(e){}
+                        return;
+                    } else {
+                        console.debug('Hosted proxy returned', hostedResp.status);
+                    }
+                } catch (he) {
+                    console.debug('Hosted proxy fetch failed or not available:', he);
+                }
+            }
+
+            // 2) Try public CORS proxy (AllOrigins) — best-effort, may be rate-limited
+            try {
+                const allOrigins = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://players.tarkov.dev/profile/${encodeURIComponent(playerId)}.json`)}`;
+                const corsResp = await fetch(allOrigins, { cache: 'no-store' });
+                if (corsResp.ok) {
+                    const cdata = await corsResp.json();
+                    const stats = extractStats(cdata);
+                    displayStats(stats);
+                    try { localStorage.setItem('tarkov_ext_config', JSON.stringify({ config: { playerId, ...stats, lastUpdated: new Date().toISOString(), autoRefresh: true } })); } catch(e){}
+                    return;
+                }
+            } catch (ce) {
+                console.debug('AllOrigins proxy failed or not available:', ce);
+            }
+
+            // 3) Try direct public players.tarkov.dev JSON (may be blocked by CORS)
+            try {
+                const publicUrl = `https://players.tarkov.dev/profile/${encodeURIComponent(playerId)}.json?_=${timestamp}`;
+                const resp = await fetch(publicUrl, { cache: 'no-store' });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    const stats = extractStats(data);
+                    displayStats(stats);
+                    try { localStorage.setItem('tarkov_ext_config', JSON.stringify({ config: { playerId, ...stats, lastUpdated: new Date().toISOString(), autoRefresh: true } })); } catch(e){}
+                    return;
+                }
+            } catch (e) {
+                console.debug('Public profile fetch failed or blocked by CORS:', e);
+            }
+
+            // 4) Fallback: Turnstile-protected endpoint (requires token)
             if (!turnstileToken) {
-                console.log('⚠️ No Turnstile token, skipping refresh');
+                console.log('⚠️ No Turnstile token available, skipping Turnstile fallback');
                 return;
             }
-            
-            const apiUrl = `https://player.tarkov.dev/account/${playerId}?gameMode=regular&token=${turnstileToken}`;
+
+            const apiUrl = `https://player.tarkov.dev/account/${playerId}?gameMode=regular&token=${turnstileToken}&_=${timestamp}`;
             const response = await fetch(apiUrl);
-            
             if (response.ok) {
                 const freshData = await response.json();
-                console.log('✅ Fresh data received');
-                
-                // Update display with fresh data
                 const stats = extractStats(freshData);
                 displayStats(stats);
-                
-                // Optionally update Twitch config
-                if (twitch) {
-                    const config = {
-                        ...stats,
-                        playerId,
-                        lastUpdated: new Date().toISOString(),
-                        autoRefresh: true
-                    };
-                    twitch.configuration.set('broadcaster', '1', JSON.stringify(config));
-                }
+                try { localStorage.setItem('tarkov_ext_config', JSON.stringify({ config: { playerId, ...stats, lastUpdated: new Date().toISOString(), autoRefresh: true } })); } catch(e){}
             } else {
-                console.warn('⚠️ Refresh failed:', response.status);
+                console.warn('⚠️ Refresh failed (Turnstile):', response.status);
             }
         } catch (error) {
             console.error('❌ Auto-refresh error:', error);
         }
-    }, 5 * 60 * 1000); // 5 minutes
+    };
+
+    // Run immediately and then at interval
+    doRefresh();
+    refreshInterval = setInterval(doRefresh, 5 * 60 * 1000);
 }
 
 // Extract stats from API response (PMC only)
@@ -507,6 +401,13 @@ function extractStats(data) {
     const pmcSurvived = findStat(pmcStats, ['ExitStatus', 'Survived']);
     const pmcKills = findStat(pmcStats, ['Kills']);
     const pmcDeaths = findStat(pmcStats, ['ExitStatus', 'Killed']);
+    const pmcRunthrough = findStat(pmcStats, ['Runner']);
+    // Extract hours from totalInGameTime (in seconds)
+    let pmcHours = 0;
+    if (data.pmcStats?.eft?.totalInGameTime) {
+        pmcHours = Math.floor(data.pmcStats.eft.totalInGameTime / 3600);
+    }
+
     const kd = pmcDeaths > 0 ? (pmcKills / pmcDeaths).toFixed(2) : pmcKills.toFixed(2);
     const sr = pmcRaids > 0 ? ((pmcSurvived / pmcRaids) * 100).toFixed(1) : '0.0';
 
@@ -520,6 +421,9 @@ function extractStats(data) {
         // level returned includes prestige offset when applicable
         level: level,
         prestigeLevel: prestige,
+        // include runthrough and hours so displayStats can show them
+        runthrough: pmcRunthrough,
+        hours: pmcHours,
         raids: pmcRaids,
         kills: pmcKills,
         deaths: pmcDeaths,
@@ -678,30 +582,6 @@ function loadDemoData() {
     showMessage('Modo demonstração - Configure a extensão!');
 }
 
-// Setup auto-refresh
-function setupAutoRefresh(playerId) {
-    // Clear existing interval
-    if (refreshInterval) {
-        clearInterval(refreshInterval);
-        refreshInterval = null;
-    }
-    
-    if (!playerId) {
-        console.warn('⚠️ No playerId provided for auto-refresh');
-        return;
-    }
-    
-    console.log('🔄 Setting up auto-refresh every 30 seconds for Player ID:', playerId);
-    
-    // Refresh every 30 seconds
-    refreshInterval = setInterval(() => {
-        console.log('🔄 Auto-refreshing stats...');
-        fetchAndDisplayStats(playerId).catch(err => {
-            console.error('❌ Auto-refresh error:', err);
-        });
-    }, 30000); // 30 seconds
-}
-
 // Cleanup on unload
 window.addEventListener('beforeunload', () => {
     if (refreshInterval) {
@@ -728,6 +608,11 @@ window.addEventListener('storage', (e) => {
             if (payload && payload.config) {
                 console.log('🔁 Detected config change via localStorage, updating panel');
                 displayStats(payload.config);
+                // If the new config contains a playerId, ensure auto-refresh is
+                // active for that player so the panel fetches fresh data.
+                if (payload.config.playerId) {
+                    setupAutoRefresh(payload.config.playerId);
+                }
             }
         } catch (err) {
             console.warn('Error parsing localStorage payload for tarkov_ext_config:', err);
