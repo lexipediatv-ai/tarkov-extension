@@ -13,6 +13,16 @@ const HOSTED_PROXY_BASE = (typeof window !== 'undefined' && window.FORCE_HOSTED_
     ? window.FORCE_HOSTED_PROXY_BASE
     : (typeof window !== 'undefined' ? window.location.origin : '');
 
+// A small list of known hosted proxy deploys (try in order when same-origin proxy is missing or returns 404).
+// Add or reorder entries as you deploy new versions. This helps when one deploy's `api/` is missing
+// or has Deployment Protection enabled — the client will try the others.
+const FALLBACK_HOSTED_PROXIES = [
+    'https://tarkov-stats-fl8kf6gcg-marcelos-projects-fb95b857.vercel.app',
+    'https://tarkov-stats-dt9lgoo7p-marcelos-projects-fb95b857.vercel.app',
+    'https://tarkov-stats-fipod0cyj-marcelos-projects-fb95b857.vercel.app',
+    'https://tarkov-stats-ccq9amoan-marcelos-projects-fb95b857.vercel.app'
+];
+
 // Initialize extension
 function init() {
     if (window.Twitch && window.Twitch.ext) {
@@ -183,19 +193,27 @@ function displayPanelAchievements(achievements) {
     (async () => {
         let json = null;
 
-        // 1) Hosted proxy (preferred for online deployment)
-        if (HOSTED_PROXY_BASE && HOSTED_PROXY_BASE.length > 0) {
+        // 1) Try hosted proxy candidates (prefer same-origin) for GraphQL metadata
+        const proxies = [];
+        if (HOSTED_PROXY_BASE && HOSTED_PROXY_BASE.length > 0) proxies.push(HOSTED_PROXY_BASE);
+        for (const p of FALLBACK_HOSTED_PROXIES) if (!proxies.includes(p)) proxies.push(p);
+
+        for (const base of proxies) {
             try {
-                const h = await fetch(`${HOSTED_PROXY_BASE}/api/graphql`, {
+                const h = await fetch(`${base}/api/graphql`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: graphQlQuery,
                     cache: 'no-store'
                 });
-                if (h.ok) json = await h.json();
-                else console.debug('Hosted GraphQL proxy returned', h.status);
+                if (h.ok) {
+                    json = await h.json();
+                    break;
+                } else {
+                    console.debug('Hosted GraphQL proxy', base, 'returned', h.status);
+                }
             } catch (he) {
-                console.debug('Hosted GraphQL proxy failed:', he);
+                console.debug('Hosted GraphQL proxy failed for', base, he);
             }
         }
 
@@ -312,10 +330,15 @@ function setupAutoRefresh(playerId) {
         try {
             const timestamp = Date.now();
 
-            // 1) Try hosted proxy first (online-first strategy)
-            if (HOSTED_PROXY_BASE && HOSTED_PROXY_BASE.length > 0) {
+            // 1) Try hosted proxy candidates first (online-first strategy). Start with HOSTED_PROXY_BASE
+            // (usually same-origin), then try known fallbacks if the first returns non-ok or is missing.
+            const proxiesToTry = [];
+            if (HOSTED_PROXY_BASE && HOSTED_PROXY_BASE.length > 0) proxiesToTry.push(HOSTED_PROXY_BASE);
+            for (const p of FALLBACK_HOSTED_PROXIES) if (!proxiesToTry.includes(p)) proxiesToTry.push(p);
+
+            for (const base of proxiesToTry) {
                 try {
-                    const hostedUrl = `${HOSTED_PROXY_BASE}/api/profile/${encodeURIComponent(playerId)}?_=${timestamp}`;
+                    const hostedUrl = `${base}/api/profile/${encodeURIComponent(playerId)}?_=${timestamp}`;
                     const hostedResp = await fetch(hostedUrl, { cache: 'no-store' });
                     if (hostedResp.ok) {
                         const hdata = await hostedResp.json();
@@ -324,10 +347,10 @@ function setupAutoRefresh(playerId) {
                         try { localStorage.setItem('tarkov_ext_config', JSON.stringify({ config: { playerId, ...stats, lastUpdated: new Date().toISOString(), autoRefresh: true } })); } catch(e){}
                         return;
                     } else {
-                        console.debug('Hosted proxy returned', hostedResp.status);
+                        console.debug('Hosted proxy', base, 'returned', hostedResp.status);
                     }
                 } catch (he) {
-                    console.debug('Hosted proxy fetch failed or not available:', he);
+                    console.debug('Hosted proxy fetch failed for', base, ':', he);
                 }
             }
 
